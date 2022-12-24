@@ -1,5 +1,7 @@
 use std::{io::{stdout, Write}, sync::{Arc}, collections::HashMap};
 use tokio::{sync::{Mutex, futures}, task::JoinSet};
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Sender;
 
 // Create client impl which takes `url` and `parts` as parameters
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
@@ -11,16 +13,17 @@ pub struct Client {
     progress: Arc<Mutex<ClientProgress>>
 }
 
+#[derive(Clone)]
 pub struct ClientProgress {
-    pub total_bytes: u64,
+    pub total_bytes: HashMap<u64, u64>,
     pub chunks: HashMap<u64, u64>,
     pub bytes_per_second: HashMap<u64, f64>
 
 }
 
 impl ClientProgress {
-    pub fn set_total_bytes(&mut self, total_bytes: u64) {
-        self.total_bytes = total_bytes;
+    pub fn set_total_bytes(&mut self, total_bytes: u64, index: &u64) {
+        self.total_bytes.insert(index.clone(), total_bytes);
     }
 
     pub fn set_chunks(&mut self, chunk: u64, index: &u64) {
@@ -31,8 +34,8 @@ impl ClientProgress {
         *self.bytes_per_second.get_mut(index).unwrap() = bytes_per_second;
     }
 
-    pub fn get_total_bytes(&self) -> u64 {
-        self.total_bytes
+    pub fn get_total_bytes(&self, index: &u64) -> u64 {
+        self.chunks[index]
     }
 
     pub fn get_chunks(&self, index: &u64) -> u64 {
@@ -47,7 +50,7 @@ impl ClientProgress {
 impl Client {
     // Functions to create a new client
     pub fn new(url: String, parts: u64) -> Self {
-        Self { url, parts, progress: Arc::new(Mutex::new(ClientProgress { total_bytes: 0, chunks: HashMap::new(), bytes_per_second: HashMap::new() })) }
+        Self { url, parts, progress: Arc::new(Mutex::new(ClientProgress { total_bytes: HashMap::new(), chunks: HashMap::new(), bytes_per_second: HashMap::new() })) }
     }
 
     pub fn get_progress(&self) -> Arc<Mutex<ClientProgress>> {
@@ -61,7 +64,7 @@ impl Client {
     }
  
     // Create async function
-    pub async fn download(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn download(&mut self, clientTransmitter: Sender<ClientProgress>) -> Result<(), Box<dyn std::error::Error>> {
         let url = self.url.clone();
         let parts = self.parts;
 
@@ -104,8 +107,9 @@ impl Client {
 
             let index = Box::new(i);
 
+            let mut transmitterClone = clientTransmitter.clone();
             threads.spawn(async move {
-                println!("Downloading part {} of {}", i, parts);
+                // println!("Downloading part {} of {}", i, parts);
                 let startTime = std::time::Instant::now();
 
                 let client = reqwest::Client::new();
@@ -120,22 +124,25 @@ impl Client {
                     Ok(mut response) => {
                         let mut file = tokio::fs::File::create(format!("{}.{}", _finalName, i)).await.unwrap();
                         let mut totalChunks = response.content_length().unwrap();
-                        let mut totalBytes = 0;
+                        let mut bytesDownloaded = 0;
                         
 
                         while let Some(chunk) = response.chunk().await.unwrap() {
                             let progress_arc = shared_progress_arc.clone();
 
-                            totalBytes += chunk.len() as u64;
+                            bytesDownloaded += chunk.len() as u64;
 
-                            let bytes_per_second = totalBytes as f64 / startTime.elapsed().as_secs_f64();
-                            println!("\rDownloaded {} of {} MB at {} MB/s", totalBytes as f64 / 1000000.0, totalChunks as f64 / 1000000.0, bytes_per_second as f64 / 1000000.0);
+                            let bytes_per_second = bytesDownloaded as f64 / startTime.elapsed().as_secs_f64();
+                            // println!("\rDownloaded {} of {} MB at {} MB/s", totalBytes as f64 / 1000000.0, totalChunks as f64 / 1000000.0, bytes_per_second as f64 / 1000000.0);
                             // stdout
                             file.write_all(&chunk).await.unwrap();
 
                             // Update using mutex
                             let mut progress = progress_arc.lock().await;
-                            progress.set_chunks(totalBytes, &index);
+                            progress.set_total_bytes(totalChunks, &index);
+                            progress.set_chunks(bytesDownloaded, &index);
+
+                            transmitterClone.send(progress.clone()).unwrap();
                         }
 
                     },
