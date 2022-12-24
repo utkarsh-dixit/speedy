@@ -15,10 +15,10 @@ pub struct Client {
 
 #[derive(Clone)]
 pub struct ClientProgress {
+    pub file_size: u64,
     pub total_bytes: HashMap<u64, u64>,
     pub chunks: HashMap<u64, u64>,
     pub bytes_per_second: HashMap<u64, f64>
-
 }
 
 impl ClientProgress {
@@ -34,6 +34,10 @@ impl ClientProgress {
         *self.bytes_per_second.get_mut(index).unwrap() = bytes_per_second;
     }
 
+    pub fn set_file_size(&mut self, file_size: u64) {
+        self.file_size = file_size;
+    }
+
     pub fn get_total_bytes(&self, index: &u64) -> u64 {
         self.chunks[index]
     }
@@ -45,12 +49,16 @@ impl ClientProgress {
     pub fn get_bytes_per_second(&self, index: &u64) -> f64 {
         self.bytes_per_second[index]
     }
+
+    pub fn get_file_size(&self) -> u64 {
+        self.file_size
+    }
 }
 
 impl Client {
     // Functions to create a new client
     pub fn new(url: String, parts: u64) -> Self {
-        Self { url, parts, progress: Arc::new(Mutex::new(ClientProgress { total_bytes: HashMap::new(), chunks: HashMap::new(), bytes_per_second: HashMap::new() })) }
+        Self { url, parts, progress: Arc::new(Mutex::new(ClientProgress { file_size: 0, total_bytes: HashMap::new(), chunks: HashMap::new(), bytes_per_second: HashMap::new() })) }
     }
 
     pub fn get_progress(&self) -> Arc<Mutex<ClientProgress>> {
@@ -86,6 +94,7 @@ impl Client {
 
         let mut threads = JoinSet:: new();
 
+        self.progress.lock().await.set_file_size(content_length);
 
         // ARc for progress
 
@@ -105,7 +114,6 @@ impl Client {
 
             let shared_progress_arc = self.progress.clone();
 
-            let index = Box::new(i);
 
             let mut transmitterClone = clientTransmitter.clone();
             threads.spawn(async move {
@@ -139,8 +147,8 @@ impl Client {
 
                             // Update using mutex
                             let mut progress = progress_arc.lock().await;
-                            progress.set_total_bytes(totalChunks, &index);
-                            progress.set_chunks(bytesDownloaded, &index);
+                            progress.set_total_bytes(totalChunks, &i);
+                            progress.set_chunks(bytesDownloaded, &i);
 
                             transmitterClone.send(progress.clone()).unwrap();
                         }

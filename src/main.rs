@@ -27,27 +27,41 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     let (tx, rx) = std::sync::mpsc::channel::<ClientProgress>();
 
     let clientTransmitter = tx.clone();
-    tokio::spawn(async move {
+    let clientThread = tokio::spawn(async move {
         // Process each socket concurrently.
         let mut client = Client::new(url.clone(), parts.clone());
         let downloadTask = client.download(clientTransmitter).await;
     });
 
-    rx.iter().for_each(|x| {
+    // Rx iter but break
+    loop {
+        let x = rx.recv().unwrap();
         // Get keys for chunks
         let keys = x.chunks.keys().collect::<Vec<&u64>>();
         print!("\x1B[2J\x1B[1;1H");
 
+        let file_size = x.file_size;
+
+        let mut completed: u64 = 0;
         // Loop
         for key in keys {
             // Get chunk
             let totalBytes = x.total_bytes[key];
             let chunk = x.chunks[key];
             let downloadProgress = (chunk as f64 / totalBytes as f64) * 100.0;
+            completed += chunk;
             println!("Download progress {}: {}%",key, downloadProgress);
         }
-    });
 
-    
+        let downloadProgress = (completed as f64 / file_size as f64) * 100.0;
+        if downloadProgress == 100.0 {
+            println!("Download complete");
+            break;
+        } else {
+            println!("Download progress: {}%", downloadProgress);
+        }
+    }
+
+    clientThread.await.unwrap();
     Ok(())
 }
