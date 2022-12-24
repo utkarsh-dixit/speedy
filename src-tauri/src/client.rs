@@ -73,6 +73,7 @@ impl Client {
  
     // Create async function
     pub async fn download(&mut self, clientTransmitter: Sender<ClientProgress>) -> Result<(), Box<dyn std::error::Error>> {
+
         let url = self.url.clone();
         let parts = self.parts;
 
