@@ -181,7 +181,7 @@ impl Client {
 
         // Delete all parts
         for i in 0..parts {
-            tokio::fs::remove_file(format!("{}.{}", fileName, i)).await.unwrap();
+            tokio::fs::remove_file(format!("../../{}.{}", fileName, i)).await.unwrap();
         }
         
         Ok(())

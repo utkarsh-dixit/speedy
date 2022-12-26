@@ -100,3 +100,8 @@ button {
     background-color: #0f0f0f98;
   }
 }
+
+html, body{
+  padding: 0;
+  margin: 0;
+}

@@ -5,6 +5,7 @@
 
 use tauri::Window;
 use tauri_app::client::{Client, ClientProgress};
+use serde_json::{Map, Value};
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
@@ -15,6 +16,8 @@ fn greet(name: &str, window: Window) {
 
     println!("Downloading file: {}", url);
     let (tx, rx) = std::sync::mpsc::channel::<ClientProgress>();
+
+    let startTime = std::time::Instant::now();
 
     let clientTransmitter = tx.clone();
     let clientThread = tokio::spawn(async move {
@@ -55,9 +58,21 @@ fn greet(name: &str, window: Window) {
                 println!("Download complete");
                 break;
             } else {
-                // Send tauri event
+                let endTime = std::time::Instant::now();
+                let duration = endTime.duration_since(startTime);
 
-                window.emit("download-progress", downloadProgress).unwrap();
+                let speed = completed as f64 / duration.as_secs_f64();
+                let estimatedTimeLeft = (file_size - completed) as f64 / speed;
+
+                // Send tauri event json
+                let mut map = Map::new();
+                map.insert("progress".to_string(), Value::from(downloadProgress));
+                map.insert("fileSize".to_string(), Value::from(file_size));
+                map.insert("completed".to_string(), Value::from(completed));
+                map.insert("speed".to_string(), Value::from(speed));
+                map.insert("estimatedTimeLeft".to_string(), Value::from(estimatedTimeLeft));
+                
+                window.emit("download-progress", map);
                 println!("Download progress: {}%", downloadProgress);
             }
         }
