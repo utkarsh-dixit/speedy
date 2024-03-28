@@ -1,6 +1,6 @@
 # Tauri + Next.js + Typescript
 
-This template should help get you started developing with Tauri, Next.js and Typescript. Hello world! aaaaa.
+This template should help get you started developing with Tauri, Next.js and Typescript. Hello world! aaaaaa.
 
 ## Recommended IDE Setup
 
