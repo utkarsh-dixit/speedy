@@ -2,7 +2,7 @@
 
 This template should help get you started developing with Tauri, Next.js and Typescript. Hello world! aaaaaaa. testing
 
-TODO: Write this readme again
+TODO: Write this readme again.
 
 ## Recommended IDE Setup
 
