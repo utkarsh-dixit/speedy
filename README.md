@@ -5,7 +5,7 @@ This template should help get you started developing with Tauri, Next.js and Typ
 
 TODO (Himanshu): Write blogpost on crewai + composio integration which also integrates triggers.
 
-
+TODO (Karan): Write blogpost on crewai + composio integration which also integrates triggers.
 
 ## Recommended IDE Setup
 
