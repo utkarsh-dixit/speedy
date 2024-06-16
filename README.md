@@ -9,7 +9,7 @@ TODO (Karan): Write blogpost on crewai + composio integration which also integra
 
 TODO (Soham): Write blogpost on crewai + composio integration which also integrates triggers.
 
-TODO (Karthikey): Write blogpost on crewai + composio integration which also integrates triggers.
+TODO (Karthikey): Write blogpost on crewai + composio integration which also integrates triggers
 
 ## Recommended IDE Setup
 
