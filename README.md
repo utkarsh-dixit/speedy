@@ -1,6 +1,6 @@
 # Tauri + Next.js + Typescript
 
-This template should help get you started developing with Tauri, Next.js and Typescript. Hello world! aaaaaaa. testing
+This template should help get you started developing with Tauri, Next.js and Typescript. Hello world! aaaaaaa.
 
 
 TODO (Himanshu): Write blogpost on crewai + composio integration which also integrates triggers.
