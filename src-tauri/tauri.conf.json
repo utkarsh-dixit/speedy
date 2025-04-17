@@ -7,8 +7,8 @@
     "withGlobalTauri": false
   },
   "package": {
-    "productName": "tauri-app",
-    "version": "0.0.0"
+    "productName": "Speedy",
+    "version": "0.1.0"
   },
   "tauri": {
     "allowlist": {
@@ -20,8 +20,8 @@
     },
     "bundle": {
       "active": true,
-      "category": "DeveloperTool",
-      "copyright": "",
+      "category": "Utility",
+      "copyright": "© 2023 Utkarsh Dixit",
       "deb": {
         "depends": []
       },
@@ -33,8 +33,8 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.tauri.dev",
-      "longDescription": "",
+      "identifier": "com.utkarsh.speedy",
+      "longDescription": "A multi-threaded download accelerator that speeds up downloads by splitting files into multiple segments.",
       "macOS": {
         "entitlements": null,
         "exceptionDomain": "",
@@ -43,7 +43,7 @@
         "signingIdentity": null
       },
       "resources": [],
-      "shortDescription": "",
+      "shortDescription": "Multi-threaded download accelerator",
       "targets": "all",
       "windows": {
         "certificateThumbprint": null,
@@ -60,10 +60,14 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "height": 650,
         "resizable": true,
-        "title": "tauri-app",
-        "width": 800
+        "title": "Speedy Download Manager",
+        "width": 800,
+        "minWidth": 480,
+        "minHeight": 550,
+        "decorations": true,
+        "center": true
       }
     ]
   }

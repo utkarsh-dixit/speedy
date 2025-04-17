@@ -1,0 +1,267 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  background-color: #f9fafb;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+
+  // Make container adjust to window size changes
+  @media (max-width: 600px) {
+    padding: 0.5rem;
+  }
+}
+
+.downloadCard {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  transition: all 200ms ease;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #f3f4f6;
+  overflow-x: auto;
+  scrollbar-width: none;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.tab {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 150ms ease;
+  color: #6b7280;
+  border: none;
+  background: none;
+  cursor: pointer;
+  
+  &:hover {
+    color: #4b5563;
+    background-color: #f9fafb;
+  }
+  
+  &.active {
+    color: #3b82f6;
+    border-bottom: 2px solid #3b82f6;
+  }
+}
+
+.content {
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 3px;
+  }
+}
+
+.urlBar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: #f9fafb;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+.urlText {
+  font-size: 0.875rem;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.statItem {
+  margin-bottom: 0.5rem;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.statValue {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.progressContainer {
+  height: 0.5rem;
+  background-color: #f3f4f6;
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.progressBar {
+  height: 100%;
+  background-color: #3b82f6;
+  border-radius: 9999px;
+  position: relative;
+  transition: width 300ms ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transform: translateX(-100%);
+    animation: shimmer 2s infinite;
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.button {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 150ms;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  
+  &:hover {
+    background-color: #e5e7eb;
+  }
+  
+  &.primary {
+    background-color: #3b82f6;
+    color: white;
+    
+    &:hover {
+      background-color: #2563eb;
+    }
+  }
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.detailsHeading {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.segmentTable {
+  width: 100%;
+  font-size: 0.875rem;
+  border-collapse: collapse;
+  background-color: #f9fafb;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+.tableHead {
+  background-color: #f3f4f6;
+}
+
+.tableHeadCell {
+  padding: 0.5rem;
+  text-align: left;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.tableRow {
+  border-top: 1px solid #e5e7eb;
+  transition: background-color 150ms;
+  
+  &:hover {
+    background-color: #f3f4f6;
+  }
+}
+
+.tableCell {
+  padding: 0.5rem;
+  color: #111827;
+  
+  &.muted {
+    color: #6b7280;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+} 
