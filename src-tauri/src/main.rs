@@ -233,7 +233,7 @@ impl HighWaterMarkTracker {
 
 /// Starts a download process and tracks its progress
 #[tauri::command]
-async fn start_download(url: String, parts: u64, window: Window) -> Result<(), String> {
+async fn start_download(url: String, parts: u64, download_id: u64, window: Window) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel::<DownloadEvent>();
 
     // Create shared download state
@@ -277,6 +277,7 @@ async fn start_download(url: String, parts: u64, window: Window) -> Result<(), S
     // Create a UI update thread to send progress to the frontend
     let watcher_state = download_state.clone();
     let watcher_window = window.clone();
+    let download_id_clone = download_id;
     tokio::spawn(async move {
         let mut interval = time::interval(Duration::from_millis(50));
         let mut high_water_mark = HighWaterMarkTracker::new();
@@ -295,6 +296,9 @@ async fn start_download(url: String, parts: u64, window: Window) -> Result<(), S
             
             // Ensure progress values never decrease
             high_water_mark.ensure_monotonic_progress(&mut progress_json);
+            
+            // Add the download ID to the payload
+            progress_json.insert("downloadId".to_string(), Value::from(download_id_clone));
             
             // Send update to the frontend
             let total_progress = progress_json.get("progress").and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -318,8 +322,9 @@ async fn start_download(url: String, parts: u64, window: Window) -> Result<(), S
 async fn greet(_name: &str, window: Window) -> Result<(), String> {
     let url = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4".to_string();
     let parts = 5;
+    let download_id = 0; // Default ID for the greet command
     
-    start_download(url, parts, window).await
+    start_download(url, parts, download_id, window).await
 }
 
 #[tokio::main]

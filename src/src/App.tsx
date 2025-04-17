@@ -100,6 +100,7 @@ interface DownloadPayload {
   completed: number;
   speed: number;
   estimatedTimeLeft: number;
+  downloadId: number;
   segments: Array<{
     id: number;
     totalBytes: number;
@@ -109,7 +110,19 @@ interface DownloadPayload {
   }>;
 }
 
-const DownloadScreen: React.FC = () => {
+interface DownloadScreenProps {
+  downloadId: number;
+  url: string;
+  parts: number;
+  isDetailView?: boolean;
+}
+
+const DownloadScreen: React.FC<DownloadScreenProps> = ({ 
+  downloadId, 
+  url, 
+  parts, 
+  isDetailView = false 
+}) => {
   const [activeTab, setActiveTab] = useState('download');
   const [showDetails, setShowDetails] = useState(true);
   const [currentProgress, setCurrentProgress] = useState(0);
@@ -122,37 +135,50 @@ const DownloadScreen: React.FC = () => {
   const [downloadedSize, setDownloadedSize] = useState(0);
   
   // Store a static record of segment IDs to ensure consistent ordering
-  const segmentOrder = useRef([1, 2, 3, 4, 5]);
+  const segmentOrder = useRef(Array.from({ length: parts }, (_, i) => i + 1));
   
   // Segments data from Rust backend
-  const [segmentsMap, setSegmentsMap] = useState<Record<number, DownloadSegment>>({
-    1: { id: 1, downloaded: '0 KB', rawBytes: 0, totalBytes: 0, progress: 0, speed: 0, status: 'Initializing...' },
-    2: { id: 2, downloaded: '0 KB', rawBytes: 0, totalBytes: 0, progress: 0, speed: 0, status: 'Initializing...' },
-    3: { id: 3, downloaded: '0 KB', rawBytes: 0, totalBytes: 0, progress: 0, speed: 0, status: 'Initializing...' },
-    4: { id: 4, downloaded: '0 KB', rawBytes: 0, totalBytes: 0, progress: 0, speed: 0, status: 'Initializing...' },
-    5: { id: 5, downloaded: '0 KB', rawBytes: 0, totalBytes: 0, progress: 0, speed: 0, status: 'Initializing...' },
-  });
+  const [segmentsMap, setSegmentsMap] = useState<Record<number, DownloadSegment>>(
+    Object.fromEntries(
+      segmentOrder.current.map(id => [
+        id, 
+        { 
+          id, 
+          downloaded: '0 KB', 
+          rawBytes: 0, 
+          totalBytes: 0, 
+          progress: 0, 
+          speed: 0, 
+          status: 'Initializing...' 
+        }
+      ])
+    )
+  );
 
   useEffect(() => {
     // Invoke greet function (from original code)
-    invoke("greet", { name: "user" }).catch(console.error);
+    invoke("start_download", { url, parts, downloadId }).catch(console.error);
 
     // Store the high water mark for each segment's data to ensure values never decrease
     const highWaterMarks = {
       progress: 0,
       downloadedSize: 0,
       segments: {
-        1: { bytes: 0, progress: 0 },
-        2: { bytes: 0, progress: 0 },
-        3: { bytes: 0, progress: 0 },
-        4: { bytes: 0, progress: 0 },
-        5: { bytes: 0, progress: 0 },
+        ...Object.fromEntries(
+          segmentOrder.current.map(id => [id, { bytes: 0, progress: 0 }])
+        )
       }
     };
 
     // Throttle listener to update download progress
     const updateDownloadProgress = throttle((event: { payload: DownloadPayload }) => {
       const { payload } = event;
+      
+      // Only process this event if it's for our download ID
+      if (payload.downloadId !== downloadId) {
+        return;
+      }
+      
       const { fileSize: size, progress: prog, speed: spd, estimatedTimeLeft: etl, segments: segmentsData } = payload;
 
       // Ensure progress only increases
@@ -182,7 +208,7 @@ const DownloadScreen: React.FC = () => {
             const { id, downloaded, totalBytes, progress: segmentProgress, speed: segmentSpeed } = segment;
             
             // Only update if segment ID is in our expected range
-            if (id >= 1 && id <= 5) {
+            if (id >= 1 && id <= parts) {
               // Get the current high water mark for this segment
               const segmentWaterMark = highWaterMarks.segments[id];
               
@@ -227,9 +253,8 @@ const DownloadScreen: React.FC = () => {
     return () => {
       unlistenFn.then(unlisten => unlisten());
     };
-  }, []);
+  }, [url, parts, downloadId]);
 
-  const fileUrl = "https://github.com/crusher-dev/crusher-downloads/releases/download/v1.0.34/Crusher.Recorder-1.0.34-linux.zip";
   const percentText = progress > 0 ? `(${progress.toFixed(2)}%)` : '';
   
   const tabs = [
@@ -274,8 +299,8 @@ const DownloadScreen: React.FC = () => {
           {/* URL */}
           <div className={styles.urlBar}>
             <LinkIcon />
-            <div className={styles.urlText} title={fileUrl}>
-              {fileUrl}
+            <div className={styles.urlText} title={url}>
+              {url}
             </div>
           </div>
 

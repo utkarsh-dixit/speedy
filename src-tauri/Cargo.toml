@@ -11,7 +11,7 @@ rust-version = "1.57"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-tauri-build = { version = "1.2", features = [] }
+tauri-build = { version = "1.4", features = [] }
 
 [dependencies]
 # Serialization
@@ -19,11 +19,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Tauri Framework
-tauri = { version = "1.2", features = ["shell-open"] }
+tauri = { version = "1.4", features = [ "http-all", "path-all", "fs-read-dir", "window-all", "fs-create-dir", "dialog-all", "fs-read-file", "fs-write-file", "shell-open"] }
 
 # Async/HTTP
-reqwest = { version = "0.11.13", features = ["json", "stream"] }
-tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11.18", features = ["json", "stream"], default-features = false }
+tokio = { version = "1.28.2", features = ["full"] }
+futures-util = "0.3.28"  # Update to a newer version
+
+# Dirs crate for accessing standard platform-specific directories
+dirs = "5.0.1"
 
 [features]
 # By default Tauri runs in production mode
