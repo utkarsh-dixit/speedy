@@ -1,107 +1,382 @@
 // Styles for the Download Manager container and controls
 .managerContainer {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  height: 100vh;
+  background-color: #f9fafb;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  color: #333;
+  
+  &.dragActive {
+    background-color: rgba(59, 130, 246, 0.05);
+    border: 2px dashed #3b82f6;
+    border-radius: 0.5rem;
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  
+  svg {
+    color: #3b82f6;
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.searchWrapper {
+  position: relative;
+}
+
+.searchInput {
+  padding: 0.5rem 0.75rem;
+  padding-left: 2rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.875rem;
+  width: 240px;
+  background-color: white;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
+  
+  &::placeholder {
+    color: #9ca3af;
+  }
+}
+
+.sortSelect {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.875rem;
+  background-color: white;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
+}
+
+.addButton {
+  padding: 0.5rem 1rem;
+  background-color: #3b82f6;
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background-color 150ms;
+  
+  &:hover {
+    background-color: #2563eb;
+  }
 }
 
 .form {
+  background-color: white;
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  margin-bottom: 1.5rem;
+}
+
+.urlInput {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
+}
+
+.formRow {
   display: flex;
+  align-items: flex-end;
   gap: 1rem;
-  margin-bottom: 2rem;
 }
 
-.form input[type="text"],
-.form input[type="number"] {
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   flex: 1;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color 0.2s ease;
+  
+  label {
+    font-size: 0.875rem;
+    color: #4b5563;
+  }
 }
 
-.form input[type="text"]:focus,
-.form input[type="number"]:focus {
-  border-color: #0070f3;
+.partsInput {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  width: 100%;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
 }
 
-.form button {
+.startButton {
   padding: 0.75rem 1.5rem;
-  background: #0070f3;
-  color: #fff;
-  font-size: 1rem;
+  background-color: #3b82f6;
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.form button:hover {
-  background: #005bb5;
+  transition: background-color 150ms;
+  
+  &:hover {
+    background-color: #2563eb;
+  }
 }
 
 .downloadList {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .downloadItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 1rem;
-  border: 1px solid #eee;
-  border-radius: 6px;
-  background: #fafafa;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  transition: transform 150ms;
+  
   &:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
     transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   }
+}
 
-  h3 {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    color: #333;
-    font-size: 1.1rem;
+.downloadContent {
+  flex: 1;
+  overflow: hidden;
+}
+
+.downloadName {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 0.5rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.downloadMeta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.status {
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  
+  &.queued {
+    background-color: #e5e7eb;
+    color: #4b5563;
   }
-
-  .url {
-    color: #666;
-    margin-bottom: 0.75rem;
-    word-break: break-all;
-    font-size: 0.9rem;
+  
+  &.downloading {
+    background-color: #dbeafe;
+    color: #1d4ed8;
   }
+  
+  &.paused {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+  
+  &.completed {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+  
+  &.error {
+    background-color: #fee2e2;
+    color: #b91c1c;
+  }
+}
 
-  .actions {
-    margin-top: 1rem;
-    display: flex;
-    gap: 1rem;
+.progressWrapper {
+  height: 0.375rem;
+  background-color: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  margin-top: 0.5rem;
+}
 
-    a {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      background-color: #0070f3;
-      color: white;
-      text-decoration: none;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      transition: background-color 0.2s;
+.progressBar {
+  height: 100%;
+  background-color: #3b82f6;
+  transition: width 300ms ease;
+}
 
-      &:hover {
-        background-color: #005bb5;
-      }
-    }
+.progressText {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.625rem;
+  color: #111827;
+  font-weight: 500;
+}
+
+.downloadActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.viewButton {
+  padding: 0.375rem 0.75rem;
+  background-color: #eff6ff;
+  color: #3b82f6;
+  font-weight: 500;
+  font-size: 0.75rem;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 150ms;
+  display: inline-block;
+  
+  &:hover {
+    background-color: #dbeafe;
+  }
+}
+
+.deleteButton {
+  padding: 0.375rem;
+  background-color: #fee2e2;
+  color: #ef4444;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background-color 150ms;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: #fecaca;
   }
 }
 
 .emptyState {
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background-color: white;
+  border-radius: 0.5rem;
   text-align: center;
-  color: #666;
-  border: 1px dashed #ddd;
-  border-radius: 6px;
+  
+  svg {
+    color: #9ca3af;
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    color: #6b7280;
+    margin-bottom: 1.5rem;
+  }
+}
+
+.dropOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(59, 130, 246, 0.1);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.dropMessage {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  text-align: center;
+  
+  svg {
+    color: #3b82f6;
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    color: #4b5563;
+    font-size: 1.125rem;
+    font-weight: 500;
+  }
 } 

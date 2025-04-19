@@ -317,6 +317,30 @@ async fn start_download(url: String, parts: u64, download_id: u64, window: Windo
     Ok(())
 }
 
+/// Opens a new window to display download details
+#[tauri::command]
+async fn open_details_window(
+    download_id: u64,
+    url: String,
+    title: String,
+    app_handle: tauri::AppHandle
+) -> Result<(), String> {
+    let label = format!("download-{}-{}", download_id, chrono::Utc::now().timestamp());
+    
+    match tauri::WindowBuilder::new(
+        &app_handle,
+        label,
+        tauri::WindowUrl::App(url.into())
+    )
+    .title(title)
+    .inner_size(800.0, 600.0)
+    .center()
+    .build() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Failed to open window: {}", e))
+    }
+}
+
 /// For backward compatibility with the previous "greet" command
 #[tauri::command]
 async fn greet(_name: &str, window: Window) -> Result<(), String> {
@@ -330,7 +354,11 @@ async fn greet(_name: &str, window: Window) -> Result<(), String> {
 #[tokio::main]
 async fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, start_download])
+        .invoke_handler(tauri::generate_handler![
+            start_download,
+            open_details_window,
+            greet
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

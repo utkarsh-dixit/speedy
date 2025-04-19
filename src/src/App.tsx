@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { emit, listen } from '@tauri-apps/api/event';
 import { throttle } from "./utils";
 import styles from './assets/styles/downloader.module.scss';
+import DownloadProgressBar from './components/downloadProgressBar';
 
 // Import components for the UI
 const LinkIcon = () => (
@@ -18,6 +19,13 @@ const PauseIcon = () => (
     <title id="pauseTitle">Pause download</title>
     <rect x="6" y="4" width="4" height="16" />
     <rect x="14" y="4" width="4" height="16" />
+  </svg>
+);
+
+const PlayIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-labelledby="resumeTitle">
+    <title id="resumeTitle">Resume download</title>
+    <polygon points="5 3 19 12 5 21 5 3" />
   </svg>
 );
 
@@ -45,6 +53,14 @@ const MoreIcon = () => (
     <circle cx="12" cy="12" r="1" />
     <circle cx="19" cy="12" r="1" />
     <circle cx="5" cy="12" r="1" />
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-labelledby="closeTitle">
+    <title id="closeTitle">Close</title>
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
 
@@ -126,6 +142,8 @@ const DownloadScreen: React.FC<DownloadScreenProps> = ({
   const [activeTab, setActiveTab] = useState('download');
   const [showDetails, setShowDetails] = useState(true);
   const [currentProgress, setCurrentProgress] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   
   // State variables from the original implementation
   const [progress, setProgress] = useState(0);
@@ -133,6 +151,16 @@ const DownloadScreen: React.FC<DownloadScreenProps> = ({
   const [speed, setSpeed] = useState(0);
   const [estimatedTimeLeft, setEstimatedTimeLeft] = useState(0);
   const [downloadedSize, setDownloadedSize] = useState(0);
+  
+  // Speed limit settings
+  const [speedLimit, setSpeedLimit] = useState(0); // 0 means unlimited
+  const [speedLimitUnit, setSpeedLimitUnit] = useState('KB/s');
+  
+  // Completion options
+  const [notifyOnComplete, setNotifyOnComplete] = useState(true);
+  const [openFolderOnComplete, setOpenFolderOnComplete] = useState(false);
+  const [runOnComplete, setRunOnComplete] = useState(false);
+  const [runCommand, setRunCommand] = useState('');
   
   // Store a static record of segment IDs to ensure consistent ordering
   const segmentOrder = useRef(Array.from({ length: parts }, (_, i) => i + 1));
@@ -244,16 +272,79 @@ const DownloadScreen: React.FC<DownloadScreenProps> = ({
           return newSegmentsMap;
         });
       }
+
+      // Notify when download completes
+      if (newProgress >= 100 && notifyOnComplete) {
+        // Using native notification API
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Download Complete', {
+            body: `Your download of ${extractFileName(url)} has completed.`,
+            icon: '/icon.png'
+          });
+        }
+        
+        // If openFolderOnComplete is true, we would invoke a Tauri command here
+        if (openFolderOnComplete) {
+          invoke("open_download_folder").catch(console.error);
+        }
+        
+        // If runOnComplete is true and we have a command
+        if (runOnComplete && runCommand.trim()) {
+          invoke("run_command", { command: runCommand }).catch(console.error);
+        }
+      }
     }, 50);
 
     // Listen to download-progress event
     const unlistenFn = listen("download-progress", updateDownloadProgress);
 
+    // Request notification permission if needed
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+
     // Cleanup listener on component unmount
     return () => {
       unlistenFn.then(unlisten => unlisten());
     };
-  }, [url, parts, downloadId]);
+  }, [url, parts, downloadId, notifyOnComplete, openFolderOnComplete, runOnComplete, runCommand]);
+  
+  // Function to handle pause/resume
+  const handlePauseResume = () => {
+    setIsPaused(prevPaused => {
+      const newState = !prevPaused;
+      invoke(newState ? "pause_download" : "resume_download", { downloadId })
+        .catch(console.error);
+      return newState;
+    });
+  };
+  
+  // Function to handle cancel
+  const handleCancel = () => {
+    if (window.confirm('Are you sure you want to cancel this download?')) {
+      invoke("cancel_download", { downloadId })
+        .catch(console.error);
+    }
+  };
+
+  // Apply speed limit
+  const applySpeedLimit = () => {
+    const multiplier = speedLimitUnit === 'MB/s' ? 1024 : 1;
+    const limitInKBps = speedLimit * multiplier;
+    invoke("set_speed_limit", { downloadId, limitKBps: limitInKBps })
+      .catch(console.error);
+  };
+  
+  // Extract filename from URL
+  const extractFileName = (url: string) => {
+    try {
+      const path = new URL(url).pathname;
+      const segments = path.split('/');
+      return segments[segments.length - 1] || 'Unknown file';
+    } catch {
+      return 'Unknown file';
+    }
+  };
 
   const percentText = progress > 0 ? `(${progress.toFixed(2)}%)` : '';
   
@@ -265,6 +356,44 @@ const DownloadScreen: React.FC<DownloadScreenProps> = ({
   
   // Create a stable ordered array from the segments map
   const orderedSegments = segmentOrder.current.map(id => segmentsMap[id]);
+
+  // Dropdown menu for more options
+  const renderMoreMenu = () => (
+    <div className={`${styles.moreMenu} ${showMoreMenu ? styles.show : ''}`}>
+      <button 
+        type="button" 
+        className={styles.menuItem}
+        onClick={() => {
+          invoke("copy_url", { url }).catch(console.error);
+          setShowMoreMenu(false);
+        }}
+      >
+        Copy URL
+      </button>
+      <button 
+        type="button" 
+        className={styles.menuItem}
+        onClick={() => {
+          invoke("save_download_as", { downloadId }).catch(console.error);
+          setShowMoreMenu(false);
+        }}
+      >
+        Save As...
+      </button>
+      <button 
+        type="button" 
+        className={styles.menuItem}
+        onClick={() => {
+          setShowMoreMenu(false);
+          if (window.confirm('Are you sure you want to delete this download?')) {
+            invoke("delete_download", { downloadId }).catch(console.error);
+          }
+        }}
+      >
+        Delete Download
+      </button>
+    </div>
+  );
   
   return (
     <div className={styles.container}>
@@ -273,11 +402,19 @@ const DownloadScreen: React.FC<DownloadScreenProps> = ({
         <div className={styles.header}>
           <div className={styles.headerTitle}>
             <DownloadIcon />
-            <span>Download Progress</span>
+            <span>{extractFileName(url)}</span>
           </div>
-          <button type="button" className={styles.button} aria-label="More options">
-            <MoreIcon />
-          </button>
+          <div className={styles.headerActions}>
+            <button 
+              type="button" 
+              className={styles.iconButton} 
+              aria-label="More options"
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+            >
+              <MoreIcon />
+            </button>
+            {renderMoreMenu()}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -296,114 +433,254 @@ const DownloadScreen: React.FC<DownloadScreenProps> = ({
 
         {/* Content */}
         <div className={styles.content}>
-          {/* URL */}
-          <div className={styles.urlBar}>
-            <LinkIcon />
-            <div className={styles.urlText} title={url}>
-              {url}
-            </div>
-          </div>
+          {activeTab === 'download' && (
+            <>
+              {/* URL */}
+              <div className={styles.urlBar}>
+                <LinkIcon />
+                <div className={styles.urlText} title={url}>
+                  {url}
+                </div>
+              </div>
 
-          {/* Download Stats */}
-          <div className={styles.statsGrid}>
-            <div>
-              <div className={styles.statItem}>
-                <div className={styles.statLabel}>File size</div>
-                <div className={styles.statValue}>
-                  {formatFileSize(fileSize)}
+              {/* Download Stats */}
+              <div className={styles.statsGrid}>
+                <div>
+                  <div className={styles.statItem}>
+                    <div className={styles.statLabel}>File size</div>
+                    <div className={styles.statValue}>
+                      {formatFileSize(fileSize)}
+                    </div>
+                  </div>
+                  <div className={styles.statItem}>
+                    <div className={styles.statLabel}>Downloaded</div>
+                    <div className={styles.statValue}>
+                      {formatFileSize(downloadedSize)} {percentText}
+                    </div>
+                  </div>
+                  <div className={styles.statItem}>
+                    <div className={styles.statLabel}>Resume capability</div>
+                    <div className={styles.statValue}>
+                      Yes
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className={styles.statItem}>
+                    <div className={styles.statLabel}>Transfer rate</div>
+                    <div className={styles.statValue}>
+                      {formatFileSize(speed)}/sec
+                    </div>
+                  </div>
+                  <div className={styles.statItem}>
+                    <div className={styles.statLabel}>Time left</div>
+                    <div className={styles.statValue}>
+                      {progress >= 100 ? 'Complete' : prettyTimeLeft(estimatedTimeLeft)}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className={styles.statItem}>
-                <div className={styles.statLabel}>Downloaded</div>
-                <div className={styles.statValue}>
-                  {formatFileSize(downloadedSize)} {percentText}
+
+              {/* Progress Bar - using aria-hidden for the visual part */}
+              <DownloadProgressBar 
+                progress={currentProgress} 
+                isPaused={isPaused} 
+                showText={false}
+                size="medium"
+              />
+
+              {/* Action Buttons */}
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={styles.button}
+                  onClick={() => setShowDetails(!showDetails)}
+                >
+                  {showDetails ? 'Hide details' : 'Show details'}
+                </button>
+                <div className={styles.buttonGroup}>
+                  <button 
+                    type="button" 
+                    className={`${styles.button} ${isPaused ? styles.resumeBtn : styles.pauseBtn}`} 
+                    onClick={handlePauseResume}
+                    disabled={progress >= 100}
+                    aria-label={isPaused ? "Resume download" : "Pause download"}
+                  >
+                    {isPaused ? <PlayIcon /> : <PauseIcon />}
+                    <span>{isPaused ? 'Resume' : 'Pause'}</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`${styles.button} ${styles.cancelBtn}`} 
+                    onClick={handleCancel}
+                    disabled={progress >= 100}
+                    aria-label="Cancel download"
+                  >
+                    <CancelIcon />
+                    <span>Cancel</span>
+                  </button>
                 </div>
               </div>
-              <div className={styles.statItem}>
-                <div className={styles.statLabel}>Resume capability</div>
-                <div className={styles.statValue}>
-                  Yes
+
+              {/* Segments Progress */}
+              {showDetails && (
+                <div>
+                  <h3 className={styles.detailsHeading}>
+                    Start positions and download progress by connections
+                  </h3>
+                  <div className={styles.tableWrapper}>
+                    <table className={styles.segmentTable}>
+                      <thead className={styles.tableHead}>
+                        <tr>
+                          <th className={styles.tableHeadCell}>N.</th>
+                          <th className={styles.tableHeadCell}>Downloaded</th>
+                          <th className={styles.tableHeadCell}>Progress</th>
+                          <th className={styles.tableHeadCell}>Speed</th>
+                          <th className={styles.tableHeadCell}>Info</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Use the stably ordered segments array */}
+                        {orderedSegments.map((segment) => (
+                          <tr key={segment.id} className={styles.tableRow}>
+                            <td className={styles.tableCell}>{segment.id}</td>
+                            <td className={styles.tableCell}>{segment.downloaded}</td>
+                            <td className={styles.tableCell}>
+                              <div className={styles.miniProgressContainer}>
+                                <div 
+                                  className={styles.miniProgressBar} 
+                                  style={{ width: `${segment.progress}%` }}
+                                />
+                                <span>{segment.progress.toFixed(1)}%</span>
+                              </div>
+                            </td>
+                            <td className={styles.tableCell}>{formatFileSize(segment.speed)}/s</td>
+                            <td className={`${styles.tableCell} ${styles.muted}`}>{segment.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'speed' && (
+            <div className={styles.tabContent}>
+              <h3 className={styles.tabTitle}>Speed Limiter</h3>
+              <div className={styles.speedLimiter}>
+                <div className={styles.formGroup}>
+                  <label htmlFor="speedLimit" className={styles.formLabel}>
+                    Limit download speed:
+                  </label>
+                  <div className={styles.inputGroup}>
+                    <input
+                      type="number"
+                      id="speedLimit"
+                      className={styles.formInput}
+                      value={speedLimit}
+                      onChange={(e) => setSpeedLimit(Math.max(0, Number.parseInt(e.target.value) || 0))}
+                      min="0"
+                      placeholder="No limit"
+                    />
+                    <select
+                      className={styles.formSelect}
+                      value={speedLimitUnit}
+                      onChange={(e) => setSpeedLimitUnit(e.target.value)}
+                    >
+                      <option value="KB/s">KB/s</option>
+                      <option value="MB/s">MB/s</option>
+                    </select>
+                  </div>
+                  <p className={styles.helperText}>
+                    Set to 0 for unlimited speed
+                  </p>
+                </div>
+                
+                <button 
+                  type="button" 
+                  className={`${styles.button} ${styles.primaryBtn}`}
+                  onClick={applySpeedLimit}
+                >
+                  Apply Limit
+                </button>
               </div>
             </div>
-            <div>
-              <div className={styles.statItem}>
-                <div className={styles.statLabel}>Transfer rate</div>
-                <div className={styles.statValue}>
-                  {formatFileSize(speed)}/sec
+          )}
+
+          {activeTab === 'options' && (
+            <div className={styles.tabContent}>
+              <h3 className={styles.tabTitle}>Options on Completion</h3>
+              
+              <div className={styles.optionGroup}>
+                <div className={styles.checkboxGroup}>
+                  <input
+                    type="checkbox"
+                    id="notifyOnComplete"
+                    checked={notifyOnComplete}
+                    onChange={(e) => setNotifyOnComplete(e.target.checked)}
+                  />
+                  <label htmlFor="notifyOnComplete">
+                    Send notification when download completes
+                  </label>
                 </div>
-              </div>
-              <div className={styles.statItem}>
-                <div className={styles.statLabel}>Time left</div>
-                <div className={styles.statValue}>
-                  {prettyTimeLeft(estimatedTimeLeft)}
+                
+                <div className={styles.checkboxGroup}>
+                  <input
+                    type="checkbox"
+                    id="openFolderOnComplete"
+                    checked={openFolderOnComplete}
+                    onChange={(e) => setOpenFolderOnComplete(e.target.checked)}
+                  />
+                  <label htmlFor="openFolderOnComplete">
+                    Open destination folder when download completes
+                  </label>
                 </div>
+                
+                <div className={styles.checkboxGroup}>
+                  <input
+                    type="checkbox"
+                    id="runOnComplete"
+                    checked={runOnComplete}
+                    onChange={(e) => setRunOnComplete(e.target.checked)}
+                  />
+                  <label htmlFor="runOnComplete">
+                    Run command when download completes
+                  </label>
+                </div>
+                
+                {runOnComplete && (
+                  <div className={styles.formGroup}>
+                    <input
+                      type="text"
+                      className={styles.formInput}
+                      value={runCommand}
+                      onChange={(e) => setRunCommand(e.target.value)}
+                      placeholder="Command to run"
+                    />
+                    <p className={styles.helperText}>
+                      Use {'{file}'} to insert the downloaded file path
+                    </p>
+                  </div>
+                )}
+                
+                <button 
+                  type="button" 
+                  className={`${styles.button} ${styles.primaryBtn}`}
+                  onClick={() => {
+                    invoke("save_completion_options", { 
+                      downloadId, 
+                      notifyOnComplete, 
+                      openFolderOnComplete, 
+                      runOnComplete, 
+                      runCommand 
+                    }).catch(console.error);
+                  }}
+                >
+                  Save Options
+                </button>
               </div>
-            </div>
-          </div>
-
-          {/* Progress Bar - using aria-hidden for the visual part */}
-          <div className={styles.progressContainer} aria-hidden="true">
-            <div 
-              className={styles.progressBar}
-              style={{ width: `${currentProgress}%` }}
-            />
-          </div>
-          {/* Hidden text for screen readers */}
-          <div className="sr-only" aria-live="polite">
-            Download progress: {currentProgress.toFixed(1)}%
-          </div>
-
-          {/* Action Buttons */}
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.button}
-              onClick={() => setShowDetails(!showDetails)}
-            >
-              {showDetails ? 'Hide details' : 'Show details'}
-            </button>
-            <div className={styles.buttonGroup}>
-              <button type="button" className={styles.button} aria-label="Pause download">
-                <PauseIcon />
-                <span>Pause</span>
-              </button>
-              <button type="button" className={styles.button} aria-label="Cancel download">
-                <CancelIcon />
-                <span>Cancel</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Segments Progress */}
-          {showDetails && (
-            <div>
-              <h3 className={styles.detailsHeading}>
-                Start positions and download progress by connections
-              </h3>
-              <table className={styles.segmentTable}>
-                <thead className={styles.tableHead}>
-                  <tr>
-                    <th className={styles.tableHeadCell}>N.</th>
-                    <th className={styles.tableHeadCell}>Downloaded</th>
-                    <th className={styles.tableHeadCell}>Progress</th>
-                    <th className={styles.tableHeadCell}>Speed</th>
-                    <th className={styles.tableHeadCell}>Info</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Use the stably ordered segments array */}
-                  {orderedSegments.map((segment) => (
-                    <tr key={segment.id} className={styles.tableRow}>
-                      <td className={styles.tableCell}>{segment.id}</td>
-                      <td className={styles.tableCell}>{segment.downloaded}</td>
-                      <td className={styles.tableCell}>{segment.progress.toFixed(1)}%</td>
-                      <td className={styles.tableCell}>{formatFileSize(segment.speed)}/s</td>
-                      <td className={`${styles.tableCell} ${styles.muted}`}>{segment.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           )}
         </div>

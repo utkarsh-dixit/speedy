@@ -1,0 +1,177 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  transition: all 150ms ease;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  &:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  }
+}
+
+// Button sizes
+.small {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  height: 1.75rem;
+}
+
+.medium {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  height: 2.25rem;
+}
+
+.large {
+  padding: 0.625rem 1rem;
+  font-size: 1rem;
+  height: 2.75rem;
+}
+
+// Button variants
+.primary {
+  background-color: #3b82f6;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background-color: #2563eb;
+  }
+  
+  &:active:not(:disabled) {
+    background-color: #1d4ed8;
+  }
+}
+
+.secondary {
+  background-color: #e5e7eb;
+  color: #374151;
+  
+  &:hover:not(:disabled) {
+    background-color: #d1d5db;
+  }
+  
+  &:active:not(:disabled) {
+    background-color: #9ca3af;
+  }
+}
+
+.success {
+  background-color: #10b981;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background-color: #059669;
+  }
+  
+  &:active:not(:disabled) {
+    background-color: #047857;
+  }
+}
+
+.danger {
+  background-color: #ef4444;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background-color: #dc2626;
+  }
+  
+  &:active:not(:disabled) {
+    background-color: #b91c1c;
+  }
+}
+
+.warning {
+  background-color: #f59e0b;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background-color: #d97706;
+  }
+  
+  &:active:not(:disabled) {
+    background-color: #b45309;
+  }
+}
+
+.info {
+  background-color: #0ea5e9;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background-color: #0284c7;
+  }
+  
+  &:active:not(:disabled) {
+    background-color: #0369a1;
+  }
+}
+
+.neutral {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  
+  &:hover:not(:disabled) {
+    background-color: #e5e7eb;
+  }
+  
+  &:active:not(:disabled) {
+    background-color: #d1d5db;
+  }
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+// Icons
+.leftIcon,
+.rightIcon {
+  display: flex;
+  align-items: center;
+}
+
+// Loading state
+.loading {
+  color: transparent !important;
+  
+  &:hover {
+    color: transparent !important;
+  }
+}
+
+.spinner {
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-left-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.invisible {
+  opacity: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+} 

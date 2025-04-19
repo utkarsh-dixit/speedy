@@ -140,12 +140,31 @@
   color: #111827;
 }
 
+// Progress bar wrapper and components
+.progressWrapper {
+  position: relative;
+  margin: 0.75rem 0;
+}
+
 .progressContainer {
   height: 0.5rem;
   background-color: #f3f4f6;
   border-radius: 9999px;
   overflow: hidden;
-  margin-bottom: 1rem;
+  position: relative;
+  margin-bottom: 0.25rem;
+  
+  &.sizeSmall {
+    height: 0.375rem;
+  }
+  
+  &.sizeMedium {
+    height: 0.5rem;
+  }
+  
+  &.sizeLarge {
+    height: 0.75rem;
+  }
 }
 
 .progressBar {
@@ -170,6 +189,47 @@
     );
     transform: translateX(-100%);
     animation: shimmer 2s infinite;
+  }
+  
+  &.paused {
+    background-color: #9ca3af;
+    animation: none;
+    
+    &::before {
+      animation: none;
+    }
+  }
+  
+  &.indeterminate {
+    width: 50%;
+    animation: indeterminate 1.5s infinite linear;
+    transform-origin: left;
+    
+    &::before {
+      animation: none;
+    }
+  }
+}
+
+.progressText {
+  font-size: 0.75rem;
+  color: #4b5563;
+  text-align: center;
+  font-weight: 500;
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 
@@ -198,6 +258,39 @@
   }
   
   &.primary {
+    background-color: #3b82f6;
+    color: white;
+    
+    &:hover {
+      background-color: #2563eb;
+    }
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  &.pauseBtn:hover {
+    background-color: #f59e0b;
+    color: white;
+  }
+  
+  &.resumeBtn {
+    background-color: #10b981;
+    color: white;
+    
+    &:hover {
+      background-color: #059669;
+    }
+  }
+  
+  &.cancelBtn:hover {
+    background-color: #ef4444;
+    color: white;
+  }
+  
+  &.primaryBtn {
     background-color: #3b82f6;
     color: white;
     
@@ -257,11 +350,178 @@
   }
 }
 
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
+// Add new styles for tabs content
+.tabContent {
+  padding: 1rem 0;
+}
+
+.tabTitle {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  color: #111827;
+}
+
+.speedLimiter,
+.optionGroup {
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.formGroup {
+  margin-bottom: 1rem;
+}
+
+.formLabel {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.formInput {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  background-color: white;
+  
+  &:focus {
+    outline: 2px solid #3b82f6;
+    border-color: transparent;
   }
-  100% {
-    transform: translateX(100%);
+}
+
+.formSelect {
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  background-color: white;
+  
+  &:focus {
+    outline: 2px solid #3b82f6;
+    border-color: transparent;
   }
+}
+
+.inputGroup {
+  display: flex;
+  gap: 0.5rem;
+  
+  .formInput {
+    flex: 1;
+  }
+}
+
+.helperText {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.checkboxGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  
+  input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #3b82f6;
+  }
+  
+  label {
+    font-size: 0.875rem;
+    color: #374151;
+  }
+}
+
+// More menu styles
+.headerActions {
+  position: relative;
+}
+
+.iconButton {
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: #f3f4f6;
+  }
+}
+
+.moreMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 200px;
+  background-color: white;
+  border-radius: 0.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 10;
+  display: none;
+  overflow: hidden;
+  margin-top: 0.5rem;
+  
+  &.show {
+    display: block;
+  }
+}
+
+.menuItem {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  
+  &:hover {
+    background-color: #f3f4f6;
+  }
+}
+
+// Mini progress bars for segments
+.miniProgressContainer {
+  position: relative;
+  height: 0.375rem;
+  width: 100%;
+  background-color: #f3f4f6;
+  border-radius: 9999px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  
+  span {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    color: #374151;
+    margin-top: 0.75rem;
+  }
+}
+
+.miniProgressBar {
+  height: 100%;
+  background-color: #3b82f6;
+  border-radius: 9999px;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-bottom: 1rem;
 } 

@@ -28,6 +28,7 @@ futures-util = "0.3.28"  # Update to a newer version
 
 # Dirs crate for accessing standard platform-specific directories
 dirs = "5.0.1"
+chrono = "0.4.31"
 
 [features]
 # By default Tauri runs in production mode
