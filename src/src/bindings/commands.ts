@@ -10,6 +10,68 @@ declare global {
 // Function avoids 'window not defined' in SSR
 const invoke = () => window.__TAURI_INVOKE__;
 
+/**
+ * Starts a download process and tracks its progress
+ */
+export function startDownload(url: string, name: string, parts: string, downloadId: string | null) {
+    return invoke()<null>("start_download", { url,name,parts,downloadId })
+}
 
+/**
+ * List all downloads from the database
+ */
+export function listDownloads() {
+    return invoke()<Download[]>("list_downloads")
+}
 
+/**
+ * Get a download by ID from the database
+ */
+export function getDownload(downloadId: string) {
+    return invoke()<Download | null>("get_download", { downloadId })
+}
 
+/**
+ * Delete a download from the database
+ */
+export function deleteDownload(downloadId: string, shouldAlsoDeleteFile: boolean | null) {
+    return invoke()<null>("delete_download", { downloadId,shouldAlsoDeleteFile })
+}
+
+/**
+ * Pauses a download by its ID
+ */
+export function pauseDownload(downloadId: string) {
+    return invoke()<null>("pause_download", { downloadId })
+}
+
+/**
+ * Resumes a download by its ID
+ */
+export function resumeDownload(downloadId: string) {
+    return invoke()<null>("resume_download", { downloadId })
+}
+
+/**
+ * Get downloads with a specific status from the database
+ */
+export function getDownloadsByStatus(status: string) {
+    return invoke()<Download[]>("get_downloads_by_status", { status })
+}
+
+/**
+ * Checks if a file is already being downloaded or exists in parts
+ * Returns information about any existing download with the same filename
+ */
+export function checkExistingDownload(url: string) {
+    return invoke()<any>("check_existing_download", { url })
+}
+
+/**
+ * Opens a new window to display download details
+ */
+export function openDetailsWindow(downloadId: string, url: string, title: string) {
+    return invoke()<null>("open_details_window", { downloadId,url,title })
+}
+
+export type Download = { id: string | null; download_id: string; url: string; filename: string; total_size: string; downloaded_bytes: string; status: string; error_message: string | null; parts: string; created_at: string; updated_at: string; completed_at: string | null; save_path: string | null }

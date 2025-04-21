@@ -84,6 +84,7 @@ const DownloadList: React.FC<DownloadListProps> = ({
                 onTogglePause={() => onTogglePause(download.id)}
                 onCancel={() => onCancel(download.id)}
                 onToggleSelect={() => onToggleSelect(download.id)}
+                selected={selectedIds.includes(download.id)}
               />
             ))
           ) : (

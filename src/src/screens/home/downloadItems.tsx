@@ -1,6 +1,5 @@
 import type { FC } from 'react';
 import { useState, useCallback } from 'react';
-import type { UIDownload as Download } from '../../types/download';
 import ProgressBar, { DownloadStatus } from '../../components/progressBars/compactProgressBar';
 import { formatSize, formatSpeed, formatTimeRemaining, formatDate } from '../../utils';
 import { getFileTypeIcon } from '../../icons.v2';
@@ -8,11 +7,12 @@ import IconButton from '../../components/iconButton';
 import { Pause, Play, Trash2, Folder, MoreVertical, RotateCcw } from '../../icons.v2';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import { pauseDownload, resumeDownload, deleteDownload } from '../../bindings/commands';
+import  { pauseDownload, resumeDownload, deleteDownload, type Download } from '../../bindings/commands';
 import { appWindow } from '@tauri-apps/api/window';
 
 interface DownloadItemProps {
   download: Download;
+  selected: boolean;
   onTogglePause: () => void;
   onCancel: () => void;
   onToggleSelect: () => void;
@@ -20,6 +20,7 @@ interface DownloadItemProps {
 
 const DownloadItem: FC<DownloadItemProps> = ({
   download,
+  selected,
   onTogglePause,
   onCancel,
   onToggleSelect,
@@ -27,9 +28,13 @@ const DownloadItem: FC<DownloadItemProps> = ({
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [shouldDeleteFile, setShouldDeleteFile] = useState(false);
-  const { fileName, status, url, progress, speed, total_size, filename, downloaded_bytes, timeRemaining, lastModified, fileType, selected, id } = download;
+  const { status, url, total_size, filename, downloaded_bytes, id } = download;
+
+  const fileType = filename.split('.').pop();
   const FileIcon = getFileTypeIcon(fileType);
-  
+
+  const speed = 100000;
+  const timeRemaining = 100000;
   const statusText = {
     [DownloadStatus.DOWNLOADING]: 'Downloading',
     [DownloadStatus.PAUSED]: 'Paused',

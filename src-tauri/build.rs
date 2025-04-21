@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use tauri_specta::ts;
 use specta::collect_types;
+use specta::ts::{BigIntExportBehavior, ExportConfiguration};
 
 fn main() {
     // Run the tauri plugin before building
@@ -17,15 +18,14 @@ fn main() {
     
     export_path.push("commands.ts");
     
-    // For a build script, we cannot directly reference the types
-    // Instead, we export an empty collection for now
-    // The actual type generation will be handled at runtime
-    let empty_types = collect_types![];
+    // For build scripts, we create skeleton bindings
+    // The full type generation happens at runtime in debug mode
+    println!("cargo:rerun-if-changed=src/api.rs");
     
-    // Generate a TypeScript file with the basic invoke setup
+    // Generate a TypeScript file with basic invoke setup
+    let empty_types = collect_types![];
     ts::export(empty_types, export_path.to_str().unwrap())
         .expect("Failed to export TypeScript bindings");
-        
-    // Print a message to remind the developer to run the app to generate complete types
-    println!("cargo:warning=Run the app with `pnpm tauri dev` to generate complete TypeScript bindings.");
+    
+    println!("cargo:warning=TypeScript bindings skeleton created. Complete types will be generated at runtime in debug mode.");
 }

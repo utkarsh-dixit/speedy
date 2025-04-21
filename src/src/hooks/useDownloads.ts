@@ -9,14 +9,40 @@ import {
   resumeDownload as resumeDownloadCmd,
   deleteDownload as deleteDownloadCmd,
   type Download as ApiDownload
-} from '../bindings/commands';
-import { convertToUIDownload, DownloadStatus, FileType } from '../types/bindings';
-import type { 
-  SortOption,  
-  DownloadSort, 
-  CategoryFilter,
-  UIDownload as Download
-} from '../types/bindings';
+} from '../bindings';
+
+// Define UI-specific types
+type SortOption = 'name' | 'size' | 'date' | 'status';
+type SortDirection = 'asc' | 'desc';
+type DownloadSort = { option: SortOption; direction: SortDirection };
+type CategoryFilter = 'all' | 'active' | 'completed' | 'paused' | 'error';
+
+// Define UI download status enum
+enum DownloadStatus {
+  DOWNLOADING = 'downloading',
+  PAUSED = 'paused',
+  COMPLETED = 'completed',
+  ERROR = 'error'
+}
+
+// Define UI download type - based on the API Download type but with UI-specific fields
+interface UIDownload {
+  id: string;
+  url: string;
+  filename: string;
+  total_size: string;
+  downloaded_bytes: string;
+  status: string;
+  progress: number;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  save_path: string | null;
+  selected?: boolean;
+}
+
+type Download = UIDownload;
 
 // Interface for download progress events from Tauri
 interface DownloadProgressEvent {
@@ -35,7 +61,7 @@ interface DownloadProgressEvent {
   }>;
 }
 
-// Interface for file existence check result
+// Properly type the return value from checkExistingDownload
 interface ExistingFileCheckResult {
   exists: boolean;
   type?: 'in_progress' | 'completed';
@@ -44,6 +70,33 @@ interface ExistingFileCheckResult {
   part_files?: number;
   location?: string;
   file_path?: string;
+}
+
+// Helper function to convert API download to UI download
+function convertToUIDownload(apiDownload: ApiDownload): UIDownload {
+  // Convert the download_id to a string for UI consistency
+  const id = String(apiDownload.download_id);
+  
+  // Calculate progress percentage
+  const total = Number(apiDownload.total_size);
+  const downloaded = Number(apiDownload.downloaded_bytes);
+  const progress = total > 0 ? (downloaded / total) * 100 : 0;
+  
+  return {
+    id,
+    url: apiDownload.url,
+    filename: apiDownload.filename,
+    total_size: String(apiDownload.total_size),
+    downloaded_bytes: String(apiDownload.downloaded_bytes),
+    status: apiDownload.status,
+    progress,
+    error_message: apiDownload.error_message,
+    created_at: apiDownload.created_at,
+    updated_at: apiDownload.updated_at,
+    completed_at: apiDownload.completed_at,
+    save_path: apiDownload.save_path,
+    selected: false
+  };
 }
 
 export const useDownloads = () => {
@@ -55,7 +108,7 @@ export const useDownloads = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // New state for file existence dialog
+  // State for file existence dialog
   const [fileCheckResult, setFileCheckResult] = useState<ExistingFileCheckResult | null>(null);
   const [pendingDownload, setPendingDownload] = useState<{ url: string, parts: number } | null>(null);
   
@@ -70,7 +123,7 @@ export const useDownloads = () => {
         const uiDownload = convertToUIDownload(apiDownload);
         return {
           ...uiDownload,
-          selected: selectedDownloadIds.includes(apiDownload.id)
+          selected: selectedDownloadIds.includes(uiDownload.id)
         };
       });
       
@@ -78,7 +131,7 @@ export const useDownloads = () => {
       setError(null);
     } catch (err) {
       console.error('Failed to fetch downloads:', err);
-      setError('Failed to load downloads');
+      setError(`Failed to load downloads: ${err}`);
     } finally {
       setIsLoading(false);
     }
@@ -107,7 +160,7 @@ export const useDownloads = () => {
         const uiDownload = convertToUIDownload(apiDownload);
         return {
           ...uiDownload,
-          selected: selectedDownloadIds.includes(apiDownload.id)
+          selected: selectedDownloadIds.includes(uiDownload.id)
         };
       });
       
@@ -115,7 +168,7 @@ export const useDownloads = () => {
       setError(null);
     } catch (err) {
       console.error('Failed to fetch filtered downloads:', err);
-      setError('Failed to load downloads');
+      setError(`Failed to load downloads: ${err}`);
     } finally {
       setIsLoading(false);
     }
@@ -148,9 +201,18 @@ export const useDownloads = () => {
   }, [fetchDownloads]);
   
   // Refetch downloads when filter changes
+  // Refetch downloads every 50ms
   useEffect(() => {
-    fetchFilteredDownloads();
-  }, [fetchFilteredDownloads]);
+    const intervalId = setInterval(() => {
+      if (categoryFilter === 'all') {
+        fetchDownloads();
+      } else {
+        fetchFilteredDownloads();
+      }
+    }, 50);
+    
+    return () => clearInterval(intervalId);
+  }, [fetchDownloads, fetchFilteredDownloads, categoryFilter]);
   
   // Filter downloads based on search query
   const filteredDownloads = useMemo(() => {
@@ -170,7 +232,7 @@ export const useDownloads = () => {
         case 'name':
           return a.filename.localeCompare(b.filename) * direction;
         case 'size':
-          return (Number.parseInt(a.total_size) - Number.parseInt(b.total_size)) * direction;
+          return (Number.parseInt(a.total_size, 10) - Number.parseInt(b.total_size, 10)) * direction;
         case 'date':
           return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction;
         case 'status': {
@@ -192,7 +254,8 @@ export const useDownloads = () => {
   // Check if a file already exists before starting download
   const checkExistingDownload = useCallback(async (url: string): Promise<ExistingFileCheckResult> => {
     try {
-      const result = await checkExistingDownloadCmd(url);
+      // Use type assertion to convert the 'any' response to our typed interface
+      const result = await checkExistingDownloadCmd(url) as ExistingFileCheckResult;
       console.log('File existence check result:', result);
       return result;
     } catch (err) {
@@ -207,7 +270,7 @@ export const useDownloads = () => {
       console.log('Starting download for URL:', url, 'with filename:', filename);
       
       // Start the download with the Tauri command
-      await startDownloadCmd(url, filename, parts);
+      await startDownloadCmd(url, filename, parts, null);
       
       // Refresh download list after adding new download
       await fetchDownloads();
@@ -288,7 +351,7 @@ export const useDownloads = () => {
       await fetchDownloads();
     } catch (err) {
       console.error('Failed to toggle pause state:', err);
-      setError('Failed to update download');
+      setError(`Failed to update download: ${err}`);
     }
   }, [downloads, fetchDownloads]);
   
@@ -305,7 +368,7 @@ export const useDownloads = () => {
       await fetchDownloads();
     } catch (err) {
       console.error('Failed to cancel download:', err);
-      setError('Failed to cancel download');
+      setError(`Failed to cancel download: ${err}`);
     }
   }, [fetchDownloads]);
   
@@ -352,8 +415,6 @@ export const useDownloads = () => {
     }
   }, [filteredDownloads, selectedDownloadIds]);
   
-
-  console.log('sortedDownloads', sortedDownloads);
   return {
     downloads: sortedDownloads,
     isLoading,
