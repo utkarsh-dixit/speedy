@@ -21,6 +21,7 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isTauriAvailable, setIsTauriAvailable] = useState(false);
   const [appWindowInstance, setAppWindowInstance] = useState<WebviewWindow | null>(null);
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if we're running in a Tauri environment
@@ -67,41 +68,53 @@ const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center" data-tauri-drag-region>
           <div className="flex space-x-2 mr-4">
             <div 
-              className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 cursor-pointer" 
+              className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 cursor-pointer relative" 
               onClick={handleClose}
+              onMouseEnter={() => setHoveredButton('close')}
+              onMouseLeave={() => setHoveredButton(null)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   handleClose();
                 }
               }}
-              role="button"
-              tabIndex={0}
               aria-label="Close window"
-            />
+            >
+              {hoveredButton === 'close' && (
+                <X className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-black" size={6} />
+              )}
+            </div>
             <div 
-              className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600 cursor-pointer" 
+              className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600 cursor-pointer relative" 
               onClick={handleMinimize}
+              onMouseEnter={() => setHoveredButton('minimize')}
+              onMouseLeave={() => setHoveredButton(null)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   handleMinimize();
                 }
               }}
-              role="button"
-              tabIndex={0}
               aria-label="Minimize window"
-            />
+            >
+              {hoveredButton === 'minimize' && (
+                <Minimize2 className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-black" size={6} />
+              )}
+            </div>
             <div 
-              className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600 cursor-pointer" 
+              className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600 cursor-pointer relative" 
               onClick={handleMaximize}
+              onMouseEnter={() => setHoveredButton('maximize')}
+              onMouseLeave={() => setHoveredButton(null)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   handleMaximize();
                 }
               }}
-              role="button"
-              tabIndex={0}
               aria-label="Maximize window"
-            />
+            >
+              {hoveredButton === 'maximize' && (
+                <Maximize2 className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-black" size={6} />
+              )}
+            </div>
           </div>
           <span className="text-sm font-medium" data-tauri-drag-region>{title}</span>
         </div>

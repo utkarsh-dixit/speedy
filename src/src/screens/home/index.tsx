@@ -58,7 +58,7 @@ function HomeScreen() {
         isGridView={isGridView}
         onToggleView={() => setIsGridView(!isGridView)}
       />
-      <div className="flex-grow flex overflow-hidden">
+      <div className="flex-grow flex overflow-hidden mt-1">
         <Sidebar 
           categoryFilter={categoryFilter}
           onCategoryChange={setCategoryFilter}
