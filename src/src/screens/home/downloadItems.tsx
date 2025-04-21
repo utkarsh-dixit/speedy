@@ -28,7 +28,7 @@ const DownloadItem: FC<DownloadItemProps> = ({
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [shouldDeleteFile, setShouldDeleteFile] = useState(false);
-  const { status, url, total_size, filename, downloaded_bytes, id } = download;
+  const { status, url, total_size, filename, id: download_id, downloaded_bytes } = download;
 
   const fileType = filename.split('.').pop();
   const FileIcon = getFileTypeIcon(fileType);
@@ -62,35 +62,35 @@ const DownloadItem: FC<DownloadItemProps> = ({
     try {
       if (status === DownloadStatus.DOWNLOADING) {
         // Pause the download
-        await pauseDownload(id);
+        await pauseDownload(download_id);
       } else if (status === DownloadStatus.PAUSED || status === DownloadStatus.ERROR) {
         // Resume or retry the download
-        await resumeDownload(id);
+        await resumeDownload(download_id);
       }
       // Call the original callback to update UI
       onTogglePause();
     } catch (error) {
       console.error('Failed to toggle download status:', error);
     }
-  }, [id, status, onTogglePause]);
+  }, [download_id, status, onTogglePause]);
   
   const handleDeleteWithFile = useCallback(async (shouldDeleteFile: boolean) => {
     try {
+      console.log('Deleting download with file:', download_id, shouldDeleteFile);
       // Call the delete_download command with the option to delete the file
-      await deleteDownload(id, shouldDeleteFile);
+      await deleteDownload(download_id, shouldDeleteFile);
       // Then call the original onCancel callback
       onCancel();
     } catch (error) {
       console.error('Failed to delete download:', error);
     }
-  }, [id, onCancel]);
+  }, [download_id, onCancel]);
 
   const handleDelete = useCallback(() => {
     // Show the dialog to confirm if the user wants to delete the file as well
     setShowDeleteDialog(true);
   }, []);
 
-  console.log('download', download);
   
   // Parse string values to numbers for calculations
   const downloadedBytes = Number.parseInt(downloaded_bytes || '0');

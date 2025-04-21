@@ -14,6 +14,14 @@ use crate::client;
 use crate::state;
 use crate::db_manager;
 
+// Helper function to convert string parameter to u64 if needed
+fn parse_u64_param(param: &str) -> u64 {
+    match param.parse::<u64>() {
+        Ok(value) => value,
+        Err(_) => 0, // Default to 0 if parsing fails
+    }
+}
+
 // Re-export Rust types as Specta types
 #[serde_as]
 #[derive(Type, Clone, Serialize, Deserialize)]
@@ -64,7 +72,10 @@ pub struct DownloadProgressEvent {
 /// Starts a download process and tracks its progress
 #[tauri::command]
 #[specta::specta]
-pub async fn start_download(url: String, name: String, parts: u64, download_id: Option<u64>, window: Window) -> Result<(), String> {
+pub async fn start_download(url: String, name: String, parts: String, download_id: Option<u64>, window: Window) -> Result<(), String> {
+    // Convert parts from string to u64
+    let parts = parse_u64_param(&parts);
+    
     let (tx, rx) = std::sync::mpsc::channel::<client::DownloadEvent>();
 
     // Create shared download state
@@ -227,7 +238,8 @@ pub async fn list_downloads() -> Result<Vec<db::Download>, String> {
 /// Get a download by ID from the database
 #[tauri::command]
 #[specta::specta]
-pub async fn get_download(download_id: u64) -> Result<Option<db::Download>, String> {
+pub async fn get_download(download_id: String) -> Result<Option<db::Download>, String> {
+    let download_id = parse_u64_param(&download_id);
     match db_manager::get_download(download_id).await {
         Ok(download) => Ok(download),
         Err(e) => Err(format!("Failed to get download: {}", e)),
@@ -237,8 +249,9 @@ pub async fn get_download(download_id: u64) -> Result<Option<db::Download>, Stri
 /// Delete a download from the database
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_download(download_id: u64, should_also_delete_file: Option<bool>) -> Result<(), String> {
+pub async fn delete_download(download_id: String, should_also_delete_file: Option<bool>) -> Result<(), String> {
     println!("Deleting download: {}", download_id);
+    let download_id = parse_u64_param(&download_id);
     
     let should_delete_file = should_also_delete_file.unwrap_or(false);
     
@@ -308,11 +321,12 @@ pub async fn get_downloads_by_status(status: String) -> Result<Vec<db::Download>
 #[tauri::command]
 #[specta::specta]
 pub async fn open_details_window(
-    download_id: u64,
+    download_id: String,
     url: String,
     title: String,
     app_handle: AppHandle
 ) -> Result<(), String> {
+    let download_id = parse_u64_param(&download_id);
     let label = format!("download-{}-{}", download_id, chrono::Utc::now().timestamp());
     
     match tauri::WindowBuilder::new(
@@ -337,7 +351,7 @@ pub async fn greet(_name: &str, window: Window) -> Result<(), String> {
     let parts = 5;
     let download_id = 0; // Default ID for the greet command
     let name = "test".to_string();
-    start_download(url, name, parts, Some(download_id), window).await
+    start_download(url, name, parts.to_string(), Some(download_id), window).await
 }
 
 /// Checks if a file is already being downloaded or exists in parts
@@ -445,8 +459,9 @@ pub async fn check_existing_download(url: String) -> Result<serde_json::Value, S
 /// Pauses a download by its ID
 #[tauri::command]
 #[specta::specta]
-pub async fn pause_download(download_id: u64) -> Result<(), String> {
+pub async fn pause_download(download_id: String) -> Result<(), String> {
     println!("Pausing download: {}", download_id);
+    let download_id = parse_u64_param(&download_id);
     
     // Update the download status to paused in the database
     match db_manager::update_status(download_id, "paused").await {
@@ -464,8 +479,9 @@ pub async fn pause_download(download_id: u64) -> Result<(), String> {
 /// Resumes a download by its ID
 #[tauri::command]
 #[specta::specta]
-pub async fn resume_download(download_id: u64, window: Window) -> Result<(), String> {
+pub async fn resume_download(download_id: String, window: Window) -> Result<(), String> {
     println!("Resuming download: {}", download_id);
+    let download_id = parse_u64_param(&download_id);
     
     // Get the download information from the database
     let download = match db_manager::get_download(download_id).await {
@@ -483,7 +499,7 @@ pub async fn resume_download(download_id: u64, window: Window) -> Result<(), Str
     start_download(
         download.url,
         download.filename,
-        download.parts,
+        download.parts.to_string(),
         Some(download_id),
         window
     ).await

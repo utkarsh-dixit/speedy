@@ -270,7 +270,7 @@ export const useDownloads = () => {
       console.log('Starting download for URL:', url, 'with filename:', filename);
       
       // Start the download with the Tauri command
-      await startDownloadCmd(url, filename, parts, null);
+      await startDownloadCmd(url, filename, parts.toString(), null);
       
       // Refresh download list after adding new download
       await fetchDownloads();
@@ -358,7 +358,7 @@ export const useDownloads = () => {
   // Cancel download
   const cancelDownload = useCallback(async (downloadId: string) => {
     try {
-      await deleteDownloadCmd(downloadId, false);
+      await deleteDownloadCmd((downloadId), false);
       
       // Update local state after successful deletion
       setDownloads(prev => prev.filter(d => d.id !== downloadId));
