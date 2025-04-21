@@ -59,6 +59,17 @@ interface RawDownload {
   save_path: string | null;
 }
 
+// Interface for file existence check result
+interface ExistingFileCheckResult {
+  exists: boolean;
+  type?: 'in_progress' | 'completed';
+  original_filename: string;
+  suggested_filename: string;
+  part_files?: number;
+  location?: string;
+  file_path?: string;
+}
+
 // Helper function to convert date strings to Date objects
 const convertDates = (download: RawDownload): Download => {
   return {
@@ -77,6 +88,10 @@ export const useDownloads = () => {
   const [sort, setSort] = useState<DownloadSort>({ option: 'date', direction: 'desc' });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // New state for file existence dialog
+  const [fileCheckResult, setFileCheckResult] = useState<ExistingFileCheckResult | null>(null);
+  const [pendingDownload, setPendingDownload] = useState<{ url: string, parts: number } | null>(null);
   
   // Fetch all downloads from database
   const fetchDownloads = useCallback(async () => {
@@ -228,42 +243,97 @@ export const useDownloads = () => {
     });
   }, [filteredDownloads, sort]);
   
-  // Generate a unique download ID
-  const generateDownloadId = useCallback(() => Date.now(), []);
-  
-  // Add a new download
-  const addDownload = useCallback(async (url: string, parts = 4) => {
-    if (!url.trim()) return;
-    
+  // Check if a file already exists before starting download
+  const checkExistingDownload = useCallback(async (url: string): Promise<ExistingFileCheckResult> => {
     try {
-      console.log('Starting download for URL:', url);
+      const result = await invoke<ExistingFileCheckResult>('check_existing_download', { url });
+      console.log('File existence check result:', result);
+      return result;
+    } catch (err) {
+      console.error('Failed to check existing download:', err);
+      throw new Error(`Failed to check for existing download: ${err}`);
+    }
+  }, []);
+  
+  // Actually start the download
+  const startDownload = useCallback(async (url: string, filename: string, parts = 4) => {
+    try {
+      console.log('Starting download for URL:', url, 'with filename:', filename);
       
-      // Let the server generate the download ID
+      // If a custom filename was provided, we'll need to handle that in the backend
+      // For now, just pass the URL and parts
       await invoke('start_download', {
         url,
         parts,
+        name: filename,
+        // TODO: Add filename parameter to the backend API if needed
       });
       
       // Refresh download list after adding new download
-      const result = await invoke<RawDownload[]>('list_downloads');
-      console.log('Downloads after adding new one:', result);
+      await fetchDownloads();
       
-      // Convert date strings to Date objects
-      const downloadsWithDates = result.map(download => ({
-        ...convertDates(download),
-        selected: false
-      }));
-      
-      setDownloads(downloadsWithDates);
+      // Clear any pending download state
+      setFileCheckResult(null);
+      setPendingDownload(null);
       
       return true;
     } catch (err) {
       console.error('Failed to start download:', err);
-      console.error('Error details:', JSON.stringify(err));
       setError(`Failed to start download: ${err}`);
       return false;
     }
-  }, []);
+  }, [fetchDownloads]);
+  
+  // Prepare download by checking if file exists first
+  const prepareDownload = useCallback(async (url: string, parts = 4) => {
+    if (!url.trim()) return false;
+    
+    try {
+      // Check if the file already exists
+      const result = await checkExistingDownload(url);
+      console.log('result', result);
+      if (result.exists) {
+        // Store the file check result and pending download info for the dialog
+        setFileCheckResult(result);
+        setPendingDownload({ url, parts });
+        return false; // Don't start download yet, wait for user decision
+      }
+      
+      // No existing file, proceed with normal download
+      return startDownload(url, result.suggested_filename || result.original_filename, parts);
+    } catch (err) {
+      console.error('Failed to prepare download:', err);
+      setError(`Failed to prepare download: ${err}`);
+      return false;
+    }
+  }, [checkExistingDownload, startDownload]);
+  
+  // Handle user decision from the dialog
+  const handleExistingFileDecision = useCallback((decision: 'resume' | 'new' | 'cancel') => {
+    if (!pendingDownload || !fileCheckResult) {
+      return;
+    }
+    
+    const { url, parts } = pendingDownload;
+    
+    if (decision === 'resume' && fileCheckResult.type === 'in_progress') {
+      // TODO: Implement resume functionality with the in_progress download
+      console.log('Resuming existing download...');
+      // For now, just clear the dialog state
+      setFileCheckResult(null);
+      setPendingDownload(null);
+    } else if (decision === 'new') {
+      // Start new download with the suggested filename
+      startDownload(url, fileCheckResult.suggested_filename, parts);
+    } else {
+      // User canceled, just clear the dialog state
+      setFileCheckResult(null);
+      setPendingDownload(null);
+    }
+  }, [pendingDownload, fileCheckResult, startDownload]);
+  
+  // Generate a unique download ID
+  const generateDownloadId = useCallback(() => Date.now(), []);
   
   // Pause/resume download - Note: This would need to be implemented in the Rust backend
   const togglePause = useCallback(async (downloadId: number) => {
@@ -353,7 +423,8 @@ export const useDownloads = () => {
     downloads: sortedDownloads,
     isLoading,
     error,
-    addDownload,
+    addDownload: prepareDownload,  // Replace direct addDownload with prepareDownload
+    startDownload,                 // Expose direct startDownload for advanced use
     togglePause,
     cancelDownload,
     toggleSelect,
@@ -365,5 +436,8 @@ export const useDownloads = () => {
     sort,
     setSort,
     selectedDownloadIds,
+    // Add new exports for file existence dialog
+    fileCheckResult,
+    handleExistingFileDecision
   };
 };

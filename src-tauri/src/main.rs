@@ -235,7 +235,7 @@ impl HighWaterMarkTracker {
 
 /// Starts a download process and tracks its progress
 #[tauri::command]
-async fn start_download(url: String, parts: u64, download_id: Option<u64>, window: Window) -> Result<(), String> {
+async fn start_download(url: String, name: String, parts: u64, download_id: Option<u64>, window: Window) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel::<DownloadEvent>();
 
     // Create shared download state
@@ -405,8 +405,51 @@ async fn get_download(download_id: u64) -> Result<Option<Download>, String> {
 
 /// Delete a download from the database
 #[tauri::command]
-async fn delete_download(download_id: u64) -> Result<(), String> {
+async fn delete_download(download_id: u64, should_also_delete_file: Option<bool>) -> Result<(), String> {
     println!("Deleting download: {}", download_id);
+    
+    let should_delete_file = should_also_delete_file.unwrap_or(false);
+    
+    // If we don't need to delete the file, we can proceed directly to database deletion
+    if !should_delete_file {
+        return delete_from_database(download_id).await;
+    }
+    
+    // If we need to delete the file, first get the download to find the file path
+    match db_manager::get_download(download_id).await {
+        Ok(Some(download)) => {
+            // Check if we have a valid save path
+            if let Some(save_path) = download.save_path.filter(|path| !path.is_empty()) {
+                // Try to delete the file
+                match std::fs::remove_file(&save_path) {
+                    Ok(_) => {
+                        println!("Successfully deleted file: {}", save_path);
+                        delete_from_database(download_id).await
+                    },
+                    Err(e) => {
+                        println!("Warning: Could not delete file at {}: {}", save_path, e);
+                        Err(format!("File deletion failed, not removing from database"))
+                    }
+                }
+            } else {
+                // No valid save path, proceed with database deletion
+                println!("No valid save path found, proceeding with database deletion");
+                delete_from_database(download_id).await
+            }
+        },
+        Ok(None) => {
+            println!("Download not found, cannot delete file");
+            Err(format!("Download not found in database"))
+        },
+        Err(e) => {
+            println!("Error retrieving download for file deletion: {}", e);
+            Err(format!("Error retrieving download: {}", e))
+        },
+    }
+}
+
+// Helper function to delete a download from the database
+async fn delete_from_database(download_id: u64) -> Result<(), String> {
     match db_manager::delete_download(download_id).await {
         Ok(_) => {
             println!("Successfully deleted download: {}", download_id);
@@ -458,14 +501,115 @@ async fn greet(_name: &str, window: Window) -> Result<(), String> {
     let url = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4".to_string();
     let parts = 5;
     let download_id = 0; // Default ID for the greet command
+    let name = "test".to_string();
+    start_download(url, name, parts, Some(download_id), window).await
+}
+
+/// Checks if a file is already being downloaded or exists in parts
+/// Returns information about any existing download with the same filename
+#[tauri::command]
+async fn check_existing_download(url: String) -> Result<serde_json::Value, String> {
+    // Get the filename from the URL
+    let filename = Client::get_file_name(&url);
     
-    start_download(url, parts, Some(download_id), window).await
+    // Get the downloads directory and temp directory
+    let downloads_dir = dirs::download_dir().unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
+    let temp_dir = std::env::temp_dir();
+    
+    // Check if the complete file already exists in the downloads folder
+    let complete_file_path = downloads_dir.join(&filename);
+    let complete_file_exists = complete_file_path.exists();
+    
+    // Check for part files in the temp directory
+    let mut part_files = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&temp_dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                // Look for part files with pattern: filename.part1, filename.part2, etc.
+                if file_name.starts_with(&filename) && file_name.contains(".part") {
+                    part_files.push(path);
+                }
+            }
+        }
+    }
+    
+    // Generate a unique filename regardless of whether we found existing files
+    let file_stem = std::path::Path::new(&filename)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+        
+    let extension = std::path::Path::new(&filename)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    
+    // Try to find a non-colliding filename
+    let mut counter = 1;
+    let mut new_filename = if extension.is_empty() {
+        format!("{} ({})", file_stem, counter)
+    } else {
+        format!("{} ({}).{}", file_stem, counter, extension)
+    };
+    
+    let mut new_path = downloads_dir.join(&new_filename);
+    
+    // Keep incrementing until we find a name that doesn't exist
+    while new_path.exists() {
+        counter += 1;
+        new_filename = if extension.is_empty() {
+            format!("{} ({})", file_stem, counter)
+        } else {
+            format!("{} ({}).{}", file_stem, counter, extension)
+        };
+        new_path = downloads_dir.join(&new_filename);
+    }
+    
+    if part_files.is_empty() && !complete_file_exists {
+        // No existing files found
+        return Ok(serde_json::json!({
+            "exists": false,
+            "original_filename": filename,
+            "suggested_filename": filename
+        }));
+    }
+    
+    if !part_files.is_empty() {
+        // We found part files, suggesting a download is in progress or was interrupted
+        return Ok(serde_json::json!({
+            "exists": true,
+            "type": "in_progress",
+            "original_filename": filename,
+            "part_files": part_files.len(),
+            "location": temp_dir.to_string_lossy(),
+            "suggested_filename": new_filename
+        }));
+    }
+    
+    if complete_file_exists {
+        // The file already exists
+        return Ok(serde_json::json!({
+            "exists": true,
+            "type": "completed",
+            "original_filename": filename,
+            "suggested_filename": new_filename,
+            "file_path": complete_file_path.to_string_lossy()
+        }));
+    }
+    
+    // This should never happen as we've handled all cases above
+    Ok(serde_json::json!({
+        "exists": false,
+        "original_filename": filename,
+        "suggested_filename": filename
+    }))
 }
 
 #[tauri::command]
 async fn debug_commands() -> Result<String, String> {
     // Return information about registered commands
-    let info = "Available commands: start_download, open_details_window, greet, list_downloads, get_download, delete_download, get_downloads_by_status";
+    let info = "Available commands: start_download, open_details_window, greet, list_downloads, get_download, delete_download, get_downloads_by_status, check_existing_download";
     Ok(info.to_string())
 }
 
@@ -483,7 +627,8 @@ async fn main() {
             get_download,
             delete_download,
             get_downloads_by_status,
-            debug_commands
+            debug_commands,
+            check_existing_download
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
