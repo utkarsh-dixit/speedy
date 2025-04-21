@@ -6,6 +6,7 @@ import { getFileTypeIcon } from '../../icons.v2';
 import IconButton from '../../components/iconButton';
 import { Pause, Play, Trash2, Folder, MoreVertical, RotateCcw } from '../../icons.v2';
 import * as ContextMenu from '@radix-ui/react-context-menu';
+import { invoke } from '@tauri-apps/api/tauri';
 
 interface DownloadItemProps {
   download: Download;
@@ -46,6 +47,17 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   const handleDownloadInfo = useCallback(() => {
     console.log('Download info');
   }, []);
+  
+  const handleDelete = useCallback(async () => {
+    try {
+      // Call the Tauri delete_download command
+      await invoke('delete_download', { downloadId: download.download_id });
+      // Then call the original onCancel callback
+      onCancel();
+    } catch (error) {
+      console.error('Failed to delete download:', error);
+    }
+  }, [download.id, onCancel]);
 
   console.log('download', download);
   
@@ -96,7 +108,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
               <IconButton icon={<Folder size={16} />} onClick={() => {}} tooltipText="Open folder" />
             )}
             
-            <IconButton icon={<Trash2 size={16} />} onClick={onCancel} tooltipText="Remove" />
+            <IconButton icon={<Trash2 size={16} />} onClick={handleDelete} tooltipText="Remove" />
             
             <div className="relative">
               <IconButton icon={<MoreVertical size={16} />} onClick={() => setShowMenu(!showMenu)} tooltipText="More options" />
@@ -104,12 +116,21 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
               {showMenu && (
                 <div className="absolute right-0 top-full mt-1 z-10 bg-app-surface-light rounded-md shadow-app-lg p-0.5"
                      onMouseLeave={() => setShowMenu(false)}>
-                  <button className="block w-full text-left px-3 py-1 text-2xs text-app-text hover:bg-app-surface rounded"
-                          onClick={() => setShowMenu(false)}>Copy URL</button>
-                  <button className="block w-full text-left px-3 py-1 text-2xs text-app-text hover:bg-app-surface rounded"
-                          onClick={() => setShowMenu(false)}>Move to folder</button>
-                  <button className="block w-full text-left px-3 py-1 text-2xs text-app-text hover:bg-app-surface rounded"
-                          onClick={() => setShowMenu(false)}>Download info</button>
+                  <button type="button" className="block w-full text-left px-3 py-1 text-2xs text-app-text hover:bg-app-surface rounded"
+                          onClick={() => {
+                            handleCopyUrl();
+                            setShowMenu(false);
+                          }}>Copy URL</button>
+                  <button type="button" className="block w-full text-left px-3 py-1 text-2xs text-app-text hover:bg-app-surface rounded"
+                          onClick={() => {
+                            handleMoveToFolder();
+                            setShowMenu(false);
+                          }}>Move to folder</button>
+                  <button type="button" className="block w-full text-left px-3 py-1 text-2xs text-app-text hover:bg-app-surface rounded"
+                          onClick={() => {
+                            handleDownloadInfo();
+                            setShowMenu(false);
+                          }}>Download info</button>
                 </div>
               )}
             </div>
@@ -120,7 +141,6 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
       <ContextMenu.Portal>
         <ContextMenu.Content 
           className="min-w-[160px] bg-app-surface-light rounded-md shadow-app-lg p-0.5 z-50 animate-fadeIn"
-          sideOffset={5}
         >
           <ContextMenu.Item 
             className="flex items-center px-3 py-1.5 text-xs text-app-text hover:bg-app-surface rounded outline-none cursor-default"
@@ -160,7 +180,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
           <ContextMenu.Separator className="h-px bg-app-surface-light my-1" />
           <ContextMenu.Item 
             className="flex items-center px-3 py-1.5 text-xs text-red-500 hover:bg-app-surface rounded outline-none cursor-default"
-            onClick={onCancel}
+            onClick={handleDelete}
           >
             Remove download
           </ContextMenu.Item>

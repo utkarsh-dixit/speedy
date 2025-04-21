@@ -406,9 +406,16 @@ async fn get_download(download_id: u64) -> Result<Option<Download>, String> {
 /// Delete a download from the database
 #[tauri::command]
 async fn delete_download(download_id: u64) -> Result<(), String> {
+    println!("Deleting download: {}", download_id);
     match db_manager::delete_download(download_id).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("Failed to delete download: {}", e)),
+        Ok(_) => {
+            println!("Successfully deleted download: {}", download_id);
+            Ok(())
+        },
+        Err(e) => {
+            println!("Failed to delete download: {}", e);
+            Err(format!("Failed to delete download: {}", e))
+        },
     }
 }
 

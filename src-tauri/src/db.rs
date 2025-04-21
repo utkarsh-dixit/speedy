@@ -346,10 +346,14 @@ impl DownloadDb {
     
     // Delete a download
     pub fn delete_download(&self, download_id: u64) -> Result<()> {
-        self.conn.execute(
+        let affected_rows = self.conn.execute(
             "DELETE FROM downloads WHERE download_id = ?1",
             params![download_id],
         )?;
+        
+        if affected_rows != 1 {
+            return Err(rusqlite::Error::QueryReturnedNoRows.into());
+        }
         
         Ok(())
     }
