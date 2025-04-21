@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import DownloadManager from "../src/components/DownloadManager";
+import HomeScreen from "../src/screens/home";
 
 function App() {
-  return <DownloadManager />;
+  return <HomeScreen />;
 }
 
 export default App;

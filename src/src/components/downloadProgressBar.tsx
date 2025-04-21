@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as Progress from '@radix-ui/react-progress';
 import styles from '../assets/styles/downloader.module.scss';
 
 interface DownloadProgressBarProps {
@@ -40,26 +41,32 @@ const DownloadProgressBar = ({
     return () => cancelAnimationFrame(animationFrame);
   }, [progress, animatedProgress, animated]);
   
-  // Determine the container and bar classes based on size
-  const containerClass = `${styles.progressContainer} ${styles[`size${size.charAt(0).toUpperCase() + size.slice(1)}`]} ${className}`;
-  const barClass = `${styles.progressBar} ${isPaused ? styles.paused : ''} ${indeterminate ? styles.indeterminate : ''}`;
+  // Determine proper size class
+  const sizeClass = `${styles[`size${size.charAt(0).toUpperCase() + size.slice(1)}`]}`;
   
   return (
     <div className={styles.progressWrapper}>
-      <div className={containerClass} aria-hidden="true">
-        <div 
-          className={barClass}
+      <Progress.Root 
+        className={`${styles.progressContainer} ${sizeClass} ${className}`}
+        value={indeterminate ? undefined : animatedProgress}
+        data-state={isPaused ? 'paused' : 'active'}
+        data-indeterminate={indeterminate}
+      >
+        <Progress.Indicator
+          className={`${styles.progressBar} ${isPaused ? styles.paused : ''} ${indeterminate ? styles.indeterminate : ''}`}
           style={{ 
-            width: indeterminate ? '50%' : `${animatedProgress}%`,
+            transform: indeterminate ? 'none' : `translateX(-${100 - animatedProgress}%)`,
             animationPlayState: isPaused ? 'paused' : 'running'
           }}
         />
-      </div>
+      </Progress.Root>
+      
       {showText && (
         <div className={styles.progressText}>
           {indeterminate ? 'Loading...' : `${Math.round(progress)}%`}
         </div>
       )}
+      
       {/* Hidden text for screen readers */}
       <div className="sr-only" aria-live="polite">
         {indeterminate ? 'Loading in progress' : `Download progress: ${Math.round(progress)}%`}

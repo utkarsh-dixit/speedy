@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { invoke } from "@tauri-apps/api/tauri";
 import styles from '../assets/styles/manager.module.scss';
+import { Dialog, Button, Select, Tabs, DropdownMenu, ContextMenuWrapper, CommandMenu } from './UI';
+import type { SelectItem } from './UI';
+import { Search, Download, Plus, MoreHorizontal, ChevronDown, Command } from 'lucide-react';
 
 // Icons
 const DownloadIcon = () => (
@@ -18,6 +20,18 @@ const TrashIcon = () => (
     <title>Delete icon</title>
     <polyline points="3 6 5 6 21 6" />
     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+
+const SortIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 5h4"></path>
+    <path d="M11 9h7"></path>
+    <path d="M11 13h10"></path>
+    <path d="M3 17h18"></path>
+    <path d="M3 21h18"></path>
+    <path d="M3 13V3h4v10"></path>
+    <path d="M3 8l4-5"></path>
   </svg>
 );
 
@@ -39,6 +53,9 @@ const DownloadManager = () => {
   const [showForm, setShowForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name'>('newest');
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
 
   // Load tasks from localStorage on component mount
   useEffect(() => {
@@ -86,17 +103,26 @@ const DownloadManager = () => {
     // Reset form
     setUrl('');
     setParts(5);
-    setShowForm(false);
+    setShowAddDialog(false);
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('Are you sure you want to delete this download?')) {
-      // Cancel the download in Tauri if it's active
-      invoke("cancel_download", { downloadId: id }).catch(console.error);
-      
-      // Remove from state
-      setTasks(prev => prev.filter(task => task.id !== id));
-    }
+  const confirmDelete = (id: number) => {
+    setSelectedTaskId(id);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDelete = () => {
+    if (!selectedTaskId) return;
+    
+    // Cancel the download in Tauri if it's active
+    invoke("cancel_download", { downloadId: selectedTaskId }).catch(console.error);
+    
+    // Remove from state
+    setTasks(prev => prev.filter(task => task.id !== selectedTaskId));
+    
+    // Close dialog and reset selected task
+    setShowDeleteDialog(false);
+    setSelectedTaskId(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -120,7 +146,7 @@ const DownloadManager = () => {
         if (items[i].kind === 'string' && items[i].type.match('^text/uri-list')) {
           items[i].getAsString((droppedUrl) => {
             setUrl(droppedUrl);
-            setShowForm(true);
+            setShowAddDialog(true);
           });
         }
       }
@@ -177,6 +203,34 @@ const DownloadManager = () => {
     });
   };
 
+  const handlePauseResume = (id: number) => {
+    setTasks(prev => prev.map(task => {
+      if (task.id === id) {
+        const newStatus = task.status === 'downloading' ? 'paused' : 'downloading';
+        
+        // Call Tauri backend to pause/resume
+        if (newStatus === 'paused') {
+          invoke("pause_download", { downloadId: id }).catch(console.error);
+        } else {
+          invoke("resume_download", { downloadId: id }).catch(console.error);
+        }
+        
+        return {
+          ...task,
+          status: newStatus
+        };
+      }
+      return task;
+    }));
+  };
+
+  // Sort options for the Select component
+  const sortOptions: SelectItem[] = [
+    { value: 'newest', label: 'Newest first' },
+    { value: 'oldest', label: 'Oldest first' },
+    { value: 'name', label: 'Name' }
+  ];
+
   return (
     <div 
       className={`${styles.managerContainer} ${dragActive ? styles.dragActive : ''}`}
@@ -186,11 +240,12 @@ const DownloadManager = () => {
     >
       <div className={styles.header}>
         <h1 className={styles.title}>
-          <DownloadIcon />
-          Download Manager
+          <Download size={18} />
+          Downloads
         </h1>
         <div className={styles.actions}>
           <div className={styles.searchWrapper}>
+            <Search size={16} className="text-app-text-secondary absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search downloads..."
@@ -198,60 +253,61 @@ const DownloadManager = () => {
               onChange={e => setSearchQuery(e.target.value)}
               className={styles.searchInput}
             />
+            <div className={styles.keyboardShortcut}>
+              <kbd className={styles.keyboardKey}>S</kbd>
+            </div>
           </div>
-          <select 
-            className={styles.sortSelect}
+          
+          <CommandMenu 
+            onAddDownload={() => setShowAddDialog(true)}
+            onSearch={(query) => setSearchQuery(query)}
+            onPauseDownload={handlePauseResume}
+            onResumeDownload={handlePauseResume}
+            onDeleteDownload={confirmDelete}
+            onCopyDownloadUrl={(id) => {
+              const task = tasks.find(t => t.id === id);
+              if (task) {
+                navigator.clipboard.writeText(task.url);
+              }
+            }}
+            onEditDownload={(id) => {
+              const task = tasks.find(t => t.id === id);
+              if (task) {
+                setUrl(task.url);
+                setParts(task.parts);
+                setShowAddDialog(true);
+              }
+            }}
+            downloadItems={tasks.map(task => ({
+              id: task.id,
+              name: task.fileName || getFileName(task.url),
+              status: task.status
+            }))}
+          />
+          
+          <Select
+            items={sortOptions}
             value={sortOrder}
-            onChange={e => setSortOrder(e.target.value as 'newest' | 'oldest' | 'name')}
+            onValueChange={(value) => setSortOrder(value as 'newest' | 'oldest' | 'name')}
+            placeholder="Sort by"
+            className={styles.sortSelect}
+          />
+          
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => setShowAddDialog(true)}
+            leftIcon={<Plus size={16} />}
           >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="name">Name</option>
-          </select>
-          <button 
-            type="button" 
-            className={styles.addButton}
-            onClick={() => setShowForm(!showForm)}
-          >
-            {showForm ? 'Cancel' : 'Add Download'}
-          </button>
+            Add Download
+          </Button>
         </div>
       </div>
-      
-      {showForm && (
-        <div className={styles.form}>
-          <input
-            type="text"
-            placeholder="File URL"
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            className={styles.urlInput}
-          />
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label htmlFor="parts">Connections:</label>
-              <input
-                id="parts"
-                type="number"
-                min={1}
-                max={32}
-                placeholder="Parts"
-                value={parts}
-                onChange={e => setParts(Math.max(1, Math.min(32, Number(e.target.value))))}
-                className={styles.partsInput}
-              />
-            </div>
-            <button type="button" onClick={handleAdd} className={styles.startButton}>
-              Start Download
-            </button>
-          </div>
-        </div>
-      )}
       
       {dragActive && (
         <div className={styles.dropOverlay}>
           <div className={styles.dropMessage}>
-            <DownloadIcon />
+            <Download size={24} />
             <p>Drop URL here to download</p>
           </div>
         </div>
@@ -259,61 +315,164 @@ const DownloadManager = () => {
       
       <div className={styles.downloadList}>
         {sortedTasks.map(task => (
-          <div key={task.id} className={styles.downloadItem}>
-            <div className={styles.downloadContent}>
-              <h3 className={styles.downloadName}>{task.fileName || getFileName(task.url)}</h3>
-              <p className={styles.url}>{formatUrl(task.url)}</p>
-              <div className={styles.downloadMeta}>
-                <span>Segments: {task.parts}</span>
-                {task.status && (
-                  <span className={`${styles.status} ${styles[task.status]}`}>
-                    {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
-                  </span>
+          <ContextMenuWrapper
+            key={task.id}
+            onDelete={() => confirmDelete(task.id)}
+            onPause={task.status === 'downloading' ? () => handlePauseResume(task.id) : undefined}
+            onResume={task.status === 'paused' ? () => handlePauseResume(task.id) : undefined}
+            onCopy={() => {
+              navigator.clipboard.writeText(task.url);
+            }}
+            onEdit={() => {
+              setUrl(task.url);
+              setParts(task.parts);
+              setShowAddDialog(true);
+            }}
+          >
+            <div className={styles.downloadItem}>
+              <div className={styles.downloadContent}>
+                <h3 className={styles.downloadName}>{task.fileName || getFileName(task.url)}</h3>
+                <p className={styles.url}>{formatUrl(task.url)}</p>
+                <div className={styles.downloadMeta}>
+                  <span>Segments: {task.parts}</span>
+                  {task.status && (
+                    <span className={`${styles.status} ${styles[task.status]}`}>
+                      {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                    </span>
+                  )}
+                </div>
+                {task.progress !== undefined && (
+                  <div className={styles.progressWrapper}>
+                    <div 
+                      className={styles.progressBar}
+                      style={{ width: `${task.progress}%` }}
+                    />
+                    <span className={styles.progressText}>{Math.round(task.progress)}%</span>
+                  </div>
                 )}
               </div>
-              {task.progress !== undefined && task.progress > 0 && (
-                <div className={styles.progressWrapper}>
-                  <div 
-                    className={styles.progressBar}
-                    style={{ width: `${task.progress}%` }}
-                  />
-                  <span className={styles.progressText}>{task.progress.toFixed(1)}%</span>
-                </div>
-              )}
+              <div className={styles.downloadActions}>
+                <DropdownMenu
+                  trigger={
+                    <Button variant="ghost" size="sm">
+                      <MoreHorizontal size={16} />
+                    </Button>
+                  }
+                  items={[
+                    {
+                      label: 'View Details',
+                      onClick: () => handleViewDetails(task.id)
+                    },
+                    task.status === 'downloading' ? {
+                      label: 'Pause',
+                      onClick: () => handlePauseResume(task.id)
+                    } : task.status === 'paused' ? {
+                      label: 'Resume',
+                      onClick: () => handlePauseResume(task.id)
+                    } : null,
+                    {
+                      label: 'Copy URL',
+                      onClick: () => navigator.clipboard.writeText(task.url)
+                    },
+                    {
+                      label: 'Edit',
+                      onClick: () => {
+                        setUrl(task.url);
+                        setParts(task.parts);
+                        setShowAddDialog(true);
+                      }
+                    },
+                    {
+                      label: 'Delete',
+                      onClick: () => confirmDelete(task.id)
+                    }
+                  ].filter(Boolean)}
+                />
+              </div>
             </div>
-            <div className={styles.downloadActions}>
-              <button 
-                type="button"
-                onClick={() => handleViewDetails(task.id)}
-                className={styles.viewButton}
-              >
-                View Details
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleDelete(task.id)}
-                className={styles.deleteButton}
-                aria-label="Delete download"
-              >
-                <TrashIcon />
-              </button>
-            </div>
-          </div>
+          </ContextMenuWrapper>
         ))}
         {tasks.length === 0 && (
           <div className={styles.emptyState}>
-            <DownloadIcon />
-            <p>No downloads yet. Add a URL to get started.</p>
-            <button 
-              type="button" 
-              className={styles.addButton}
-              onClick={() => setShowForm(true)}
+            <Download size={24} />
+            <p>No downloads yet</p>
+            <Button 
+              variant="primary"
+              size="md"
+              onClick={() => setShowAddDialog(true)}
+              leftIcon={<Plus size={16} />}
             >
               Add Download
-            </button>
+            </Button>
           </div>
         )}
       </div>
+
+      {/* Add Download Dialog */}
+      <Dialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        title="Add New Download"
+        description="Enter the URL of the file you want to download"
+        footer={
+          <>
+            <Button variant="default" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleAdd}>
+              Start Download
+            </Button>
+          </>
+        }
+      >
+        <div className={styles.dialogForm}>
+          <div className={styles.formGroup}>
+            <label htmlFor="url" className={styles.formLabel}>Download URL</label>
+            <input
+              id="url"
+              type="text"
+              placeholder="https://example.com/file.zip"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              className={styles.formInput}
+            />
+          </div>
+          
+          <div className={styles.formGroup}>
+            <label htmlFor="parts" className={styles.formLabel}>Number of Connections</label>
+            <input
+              id="parts"
+              type="number"
+              min={1}
+              max={32}
+              value={parts}
+              onChange={e => setParts(Math.max(1, Math.min(32, Number(e.target.value))))}
+              className={styles.formInput}
+            />
+            <small className={styles.formHelp}>More connections may improve download speed</small>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Download"
+        description="Are you sure you want to delete this download? This action cannot be undone."
+        footer={
+          <>
+            <Button variant="default" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDelete}>
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p>This will permanently remove the download and cancel any in-progress tasks.</p>
+      </Dialog>
     </div>
   );
 };
