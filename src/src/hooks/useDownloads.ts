@@ -1,62 +1,38 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
+import { 
+  listDownloads, 
+  getDownloadsByStatus, 
+  startDownload as startDownloadCmd,
+  checkExistingDownload as checkExistingDownloadCmd,
+  pauseDownload as pauseDownloadCmd,
+  resumeDownload as resumeDownloadCmd,
+  deleteDownload as deleteDownloadCmd,
+  type Download as ApiDownload
+} from '../bindings/commands';
+import { convertToUIDownload, DownloadStatus, FileType } from '../types/bindings';
 import type { 
   SortOption,  
   DownloadSort, 
-  CategoryFilter 
-} from '../types/download';
+  CategoryFilter,
+  UIDownload as Download
+} from '../types/bindings';
 
-// Update to match our Rust backend schema
-export interface Download {
-  id?: number;
-  download_id: number;
-  url: string;
-  filename: string;
-  total_size: number;
-  downloaded_bytes: number;
-  status: string; // "in_progress", "paused", "completed", "error"
-  error_message?: string;
-  parts: number;
-  created_at: Date;   // Changed from string to Date
-  updated_at: Date;   // Changed from string to Date
-  completed_at?: Date; // Changed from string to Date
-  save_path?: string;
-  selected?: boolean; // UI-only property
-}
-
-// Type for download progress events from Tauri
+// Interface for download progress events from Tauri
 interface DownloadProgressEvent {
-  downloadId: number;
+  downloadId: string;
   progress: number;
-  completed: number;
-  fileSize: number;
+  completed: string;
+  fileSize: string;
   speed: number;
   estimatedTimeLeft: number;
   segments: Array<{
-    id: number;
-    totalBytes: number;
-    downloaded: number;
+    id: string;
+    totalBytes: string;
+    downloaded: string;
     progress: number;
     speed: number;
   }>;
-}
-
-// Type for raw download data from Rust backend
-interface RawDownload {
-  id?: number;
-  download_id: number;
-  url: string;
-  filename: string;
-  total_size: number;
-  downloaded_bytes: number;
-  status: string;
-  error_message: string | null;
-  parts: number;
-  created_at: string;
-  updated_at: string;
-  completed_at?: string;
-  save_path: string | null;
 }
 
 // Interface for file existence check result
@@ -70,21 +46,11 @@ interface ExistingFileCheckResult {
   file_path?: string;
 }
 
-// Helper function to convert date strings to Date objects
-const convertDates = (download: RawDownload): Download => {
-  return {
-    ...download,
-    created_at: download.created_at ? new Date(download.created_at) : new Date(),
-    updated_at: download.updated_at ? new Date(download.updated_at) : new Date(),
-    completed_at: download.completed_at ? new Date(download.completed_at) : undefined
-  };
-};
-
 export const useDownloads = () => {
   const [downloads, setDownloads] = useState<Download[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const [selectedDownloadIds, setSelectedDownloadIds] = useState<number[]>([]);
+  const [selectedDownloadIds, setSelectedDownloadIds] = useState<string[]>([]);
   const [sort, setSort] = useState<DownloadSort>({ option: 'date', direction: 'desc' });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,26 +63,17 @@ export const useDownloads = () => {
   const fetchDownloads = useCallback(async () => {
     try {
       setIsLoading(true);
-      const result = await invoke<RawDownload[]>('list_downloads');
-      // Transform RawDownload to Download objects
-      const transformedDownloads = result.map(rawDownload => ({
-        ...convertDates(rawDownload),
-        selected: selectedDownloadIds.includes(rawDownload.download_id),
-        download_id: rawDownload.download_id,
-        url: rawDownload.url,
-        filename: rawDownload.filename,
-        total_size: rawDownload.total_size,
-        downloaded_bytes: rawDownload.downloaded_bytes,
-        status: rawDownload.status,
-        error_message: rawDownload.error_message,
-        parts: rawDownload.parts,
-        save_path: rawDownload.save_path,
-        size: rawDownload.total_size,
-        speed: rawDownload.downloaded_bytes,
-        timeRemaining: rawDownload.downloaded_bytes,
-        lastModified: rawDownload.created_at,
-        fileType: rawDownload.filename.split('.').pop()
-      }));
+      const result = await listDownloads();
+      
+      // Transform API downloads to UI downloads
+      const transformedDownloads = result.map(apiDownload => {
+        const uiDownload = convertToUIDownload(apiDownload);
+        return {
+          ...uiDownload,
+          selected: selectedDownloadIds.includes(apiDownload.id)
+        };
+      });
+      
       setDownloads(transformedDownloads);
       setError(null);
     } catch (err) {
@@ -131,27 +88,30 @@ export const useDownloads = () => {
   const fetchFilteredDownloads = useCallback(async () => {
     try {
       setIsLoading(true);
-      let downloads: RawDownload[];
+      let apiDownloads: ApiDownload[];
       
       if (categoryFilter === 'all') {
-        downloads = await invoke<RawDownload[]>('list_downloads');
+        apiDownloads = await listDownloads();
       } else {
         // Map our UI categories to backend statuses
-        const status = categoryFilter === 'active' ? 'in_progress' : 
+        const status = categoryFilter === 'active' ? 'downloading' : 
                         categoryFilter === 'completed' ? 'completed' : 
                         categoryFilter === 'paused' ? 'paused' : 
-                        categoryFilter === 'error' ? 'error' : 'in_progress';
+                        categoryFilter === 'error' ? 'error' : 'downloading';
         
-        downloads = await invoke<RawDownload[]>('get_downloads_by_status', { status });
+        apiDownloads = await getDownloadsByStatus(status);
       }
       
-      // Convert date strings to Date objects and preserve selection state
-      const downloadsWithDates = downloads.map(download => ({
-        ...convertDates(download),
-        selected: selectedDownloadIds.includes(download.download_id)
-      }));
+      // Convert API downloads to UI downloads
+      const uiDownloads = apiDownloads.map(apiDownload => {
+        const uiDownload = convertToUIDownload(apiDownload);
+        return {
+          ...uiDownload,
+          selected: selectedDownloadIds.includes(apiDownload.id)
+        };
+      });
       
-      setDownloads(downloadsWithDates);
+      setDownloads(uiDownloads);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch filtered downloads:', err);
@@ -170,12 +130,12 @@ export const useDownloads = () => {
       const progress = event.payload;
       
       setDownloads(current => current.map(download => {
-        if (download.download_id === progress.downloadId) {
+        if (download.id === progress.downloadId) {
           return {
             ...download,
-            downloaded_bytes: progress.completed || download.downloaded_bytes,
+            downloaded_bytes: progress.completed,
             // Convert fractional progress (0-100) to status if we're at 100%
-            status: progress.progress >= 100 ? 'completed' : download.status
+            status: progress.progress >= 100 ? DownloadStatus.COMPLETED : download.status
           };
         }
         return download;
@@ -186,19 +146,6 @@ export const useDownloads = () => {
       unlistenProgress.then(unlisten => unlisten());
     };
   }, [fetchDownloads]);
-  
-  // Refetch downloads every 50ms
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (categoryFilter === 'all') {
-        fetchDownloads();
-      } else {
-        fetchFilteredDownloads();
-      }
-    }, 50);
-    
-    return () => clearInterval(intervalId);
-  }, [fetchDownloads, fetchFilteredDownloads, categoryFilter]);
   
   // Refetch downloads when filter changes
   useEffect(() => {
@@ -223,19 +170,18 @@ export const useDownloads = () => {
         case 'name':
           return a.filename.localeCompare(b.filename) * direction;
         case 'size':
-          return (a.total_size - b.total_size) * direction;
+          return (Number.parseInt(a.total_size) - Number.parseInt(b.total_size)) * direction;
         case 'date':
-          // No need to convert to Date as we've already done that
-          return (a.created_at.getTime() - b.created_at.getTime()) * direction;
+          return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction;
         case 'status': {
-          // Define status order: in_progress, paused, completed, error
+          // Define status order: downloading, paused, completed, error
           const statusOrder = {
-            'in_progress': 0,
-            'paused': 1,
-            'completed': 2,
-            'error': 3,
+            [DownloadStatus.DOWNLOADING]: 0,
+            [DownloadStatus.PAUSED]: 1,
+            [DownloadStatus.COMPLETED]: 2,
+            [DownloadStatus.ERROR]: 3,
           };
-          return (statusOrder[a.status] - statusOrder[b.status]) * direction;
+          return (statusOrder[a.status as DownloadStatus] - statusOrder[b.status as DownloadStatus]) * direction;
         }
         default:
           return 0;
@@ -246,7 +192,7 @@ export const useDownloads = () => {
   // Check if a file already exists before starting download
   const checkExistingDownload = useCallback(async (url: string): Promise<ExistingFileCheckResult> => {
     try {
-      const result = await invoke<ExistingFileCheckResult>('check_existing_download', { url });
+      const result = await checkExistingDownloadCmd(url);
       console.log('File existence check result:', result);
       return result;
     } catch (err) {
@@ -260,14 +206,8 @@ export const useDownloads = () => {
     try {
       console.log('Starting download for URL:', url, 'with filename:', filename);
       
-      // If a custom filename was provided, we'll need to handle that in the backend
-      // For now, just pass the URL and parts
-      await invoke('start_download', {
-        url,
-        parts,
-        name: filename,
-        // TODO: Add filename parameter to the backend API if needed
-      });
+      // Start the download with the Tauri command
+      await startDownloadCmd(url, filename, parts);
       
       // Refresh download list after adding new download
       await fetchDownloads();
@@ -332,53 +272,48 @@ export const useDownloads = () => {
     }
   }, [pendingDownload, fileCheckResult, startDownload]);
   
-  // Generate a unique download ID
-  const generateDownloadId = useCallback(() => Date.now(), []);
-  
-  // Pause/resume download - Note: This would need to be implemented in the Rust backend
-  const togglePause = useCallback(async (downloadId: number) => {
-    const download = downloads.find(d => d.download_id === downloadId);
+  // Pause/resume download
+  const togglePause = useCallback(async (downloadId: string) => {
+    const download = downloads.find(d => d.id === downloadId);
     if (!download) return;
     
     try {
-      // This would need a corresponding Tauri command in your Rust backend
-      // await invoke('toggle_pause_download', { download_id: downloadId });
+      if (download.status === DownloadStatus.DOWNLOADING) {
+        await pauseDownloadCmd(downloadId);
+      } else if (download.status === DownloadStatus.PAUSED) {
+        await resumeDownloadCmd(downloadId);
+      }
       
-      // For now, just update the UI state - you would replace this with actual backend call
-      setDownloads(prev =>
-        prev.map(d => {
-          if (d.download_id === downloadId) {
-            const newStatus = d.status === 'in_progress' ? 'paused' : 'in_progress';
-            return { ...d, status: newStatus };
-          }
-          return d;
-        })
-      );
+      // Refresh the downloads list after changing state
+      await fetchDownloads();
     } catch (err) {
       console.error('Failed to toggle pause state:', err);
       setError('Failed to update download');
     }
-  }, [downloads]);
+  }, [downloads, fetchDownloads]);
   
   // Cancel download
-  const cancelDownload = useCallback(async (downloadId: number) => {
+  const cancelDownload = useCallback(async (downloadId: string) => {
     try {
-      await invoke('delete_download', { download_id: downloadId });
+      await deleteDownloadCmd(downloadId, false);
       
       // Update local state after successful deletion
-      setDownloads(prev => prev.filter(d => d.download_id !== downloadId));
+      setDownloads(prev => prev.filter(d => d.id !== downloadId));
       setSelectedDownloadIds(prev => prev.filter(id => id !== downloadId));
+      
+      // Refresh downloads list
+      await fetchDownloads();
     } catch (err) {
       console.error('Failed to cancel download:', err);
       setError('Failed to cancel download');
     }
-  }, []);
+  }, [fetchDownloads]);
   
   // Select/deselect download
-  const toggleSelect = useCallback((downloadId: number) => {
+  const toggleSelect = useCallback((downloadId: string) => {
     setDownloads(prev =>
       prev.map(download => {
-        if (download.download_id === downloadId) {
+        if (download.id === downloadId) {
           return { ...download, selected: !download.selected };
         }
         return download;
@@ -395,7 +330,7 @@ export const useDownloads = () => {
   
   // Select all downloads
   const selectAll = useCallback(() => {
-    const allIds = filteredDownloads.map(d => d.download_id);
+    const allIds = filteredDownloads.map(d => d.id);
     
     // If all are selected, deselect all
     if (allIds.length === selectedDownloadIds.length) {
@@ -408,7 +343,7 @@ export const useDownloads = () => {
       setSelectedDownloadIds(allIds);
       setDownloads(prev =>
         prev.map(download => {
-          if (allIds.includes(download.download_id)) {
+          if (allIds.includes(download.id)) {
             return { ...download, selected: true };
           }
           return download;

@@ -3,8 +3,12 @@
     windows_subsystem = "windows"
 )]
 
+mod api;
+
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Window;
@@ -12,6 +16,18 @@ use tauri_app::client::{Client, DownloadEvent};
 use tauri_app::db::Download;
 use tauri_app::db_manager;
 use tokio::time;
+use tauri::generate_handler;
+
+// For runtime type generation
+use specta::collect_types;
+use tauri_specta::{ts};
+
+// Import Specta TypeScript settings to configure BigInt behavior
+use specta::ts::{BigIntExportBehavior, ExportConfiguration};
+
+// Use i32 instead of u64 for external API to avoid TypeScript binding issues
+// Internal Rust code can still use u64 with safe conversions
+type ApiNumber = i32;
 
 /// Represents the current state of a download operation
 #[derive(Debug)]
@@ -234,7 +250,6 @@ impl HighWaterMarkTracker {
 }
 
 /// Starts a download process and tracks its progress
-#[tauri::command]
 async fn start_download(url: String, name: String, parts: u64, download_id: Option<u64>, window: Window) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel::<DownloadEvent>();
 
@@ -386,7 +401,6 @@ async fn start_download(url: String, name: String, parts: u64, download_id: Opti
 }
 
 /// List all downloads from the database
-#[tauri::command]
 async fn list_downloads() -> Result<Vec<Download>, String> {
     match db_manager::list_downloads().await {
         Ok(downloads) => Ok(downloads),
@@ -395,7 +409,6 @@ async fn list_downloads() -> Result<Vec<Download>, String> {
 }
 
 /// Get a download by ID from the database
-#[tauri::command]
 async fn get_download(download_id: u64) -> Result<Option<Download>, String> {
     match db_manager::get_download(download_id).await {
         Ok(download) => Ok(download),
@@ -404,7 +417,6 @@ async fn get_download(download_id: u64) -> Result<Option<Download>, String> {
 }
 
 /// Delete a download from the database
-#[tauri::command]
 async fn delete_download(download_id: u64, should_also_delete_file: Option<bool>) -> Result<(), String> {
     println!("Deleting download: {}", download_id);
     
@@ -463,7 +475,6 @@ async fn delete_from_database(download_id: u64) -> Result<(), String> {
 }
 
 /// Get downloads with a specific status from the database
-#[tauri::command]
 async fn get_downloads_by_status(status: String) -> Result<Vec<Download>, String> {
     match db_manager::get_downloads_by_status(&status).await {
         Ok(downloads) => Ok(downloads),
@@ -472,7 +483,6 @@ async fn get_downloads_by_status(status: String) -> Result<Vec<Download>, String
 }
 
 /// Opens a new window to display download details
-#[tauri::command]
 async fn open_details_window(
     download_id: u64,
     url: String,
@@ -507,7 +517,6 @@ async fn greet(_name: &str, window: Window) -> Result<(), String> {
 
 /// Checks if a file is already being downloaded or exists in parts
 /// Returns information about any existing download with the same filename
-#[tauri::command]
 async fn check_existing_download(url: String) -> Result<serde_json::Value, String> {
     // Get the filename from the URL
     let filename = Client::get_file_name(&url);
@@ -607,7 +616,6 @@ async fn check_existing_download(url: String) -> Result<serde_json::Value, Strin
 }
 
 /// Pauses a download by its ID
-#[tauri::command]
 async fn pause_download(download_id: u64) -> Result<(), String> {
     println!("Pausing download: {}", download_id);
     
@@ -625,7 +633,6 @@ async fn pause_download(download_id: u64) -> Result<(), String> {
 }
 
 /// Resumes a download by its ID
-#[tauri::command]
 async fn resume_download(download_id: u64, window: Window) -> Result<(), String> {
     println!("Resuming download: {}", download_id);
     
@@ -663,19 +670,52 @@ async fn main() {
     // Initialize the database
     db_manager::init_db().await;
     
+    // Generate TypeScript bindings at runtime in debug mode
+    #[cfg(debug_assertions)]
+    {
+        println!("Generating TypeScript bindings...");
+        
+        let mut export_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        export_path.pop(); // Move up to the workspace root
+        export_path.push("src/src/bindings");
+        
+        // Create the directory if it doesn't exist
+        fs::create_dir_all(&export_path).expect("Failed to create bindings directory");
+        
+        export_path.push("commands.ts");
+        
+        // Generate TypeScript bindings for all API functions
+        let type_collection = collect_types![
+            api::start_download,
+            api::list_downloads,
+            api::get_download,
+            api::delete_download,
+            api::pause_download,
+            api::resume_download,
+            api::get_downloads_by_status,
+            api::check_existing_download,
+            api::open_details_window
+        ].unwrap();
+
+        let specta_config = ExportConfiguration::new().bigint(BigIntExportBehavior::Number);
+        
+        // Configure TypeScript export to handle BigInt values properly
+        ts::export_with_cfg(type_collection, specta_config, export_path).unwrap()
+    }
+    
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            start_download,
-            open_details_window,
-            greet,
-            list_downloads,
-            get_download,
-            delete_download,
-            get_downloads_by_status,
+        .invoke_handler(generate_handler![
+            api::start_download,
+            api::list_downloads,
+            api::get_download,
+            api::delete_download,
+            api::pause_download,
+            api::resume_download,
+            api::get_downloads_by_status,
+            api::check_existing_download,
+            api::open_details_window,
+            greet, // Keep the legacy function for backward compatibility
             debug_commands,
-            check_existing_download,
-            pause_download,
-            resume_download
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

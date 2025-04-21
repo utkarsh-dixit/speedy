@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev -p 1420",
     "build": "next build && next export -o dist",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "cargo build --manifest-path=src-tauri/Cargo.toml && npm run dev",
+    "tauri:build": "cargo build --release --manifest-path=src-tauri/Cargo.toml && npm run build",
+    "postprocess-bindings": "node scripts/process-ts-bindings.js"
   },
   "dependencies": {
     "@radix-ui/colors": "^0.1.8",

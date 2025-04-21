@@ -1,16 +1,22 @@
 use rusqlite::{params, Connection, Result};
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 use chrono::{DateTime, Utc};
+use specta::Type;
 
 // Define our Download struct that will represent a row in the database
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Download {
     pub id: Option<i64>,            // SQLite primary key, None for new downloads
+    #[serde_as(as = "DisplayFromStr")]
     pub download_id: u64,           // Application-level ID for the download
     pub url: String,                // URL being downloaded
     pub filename: String,           // Filename for the download
+    #[serde_as(as = "DisplayFromStr")]
     pub total_size: u64,            // Total file size in bytes
+    #[serde_as(as = "DisplayFromStr")]
     pub downloaded_bytes: u64,      // Currently downloaded bytes
     pub status: String,             // Status: "in_progress", "paused", "completed", "error"
     pub error_message: Option<String>, // Error message if status is "error"

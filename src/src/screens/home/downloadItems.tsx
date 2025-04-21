@@ -1,13 +1,14 @@
-import React, { useState, useCallback } from 'react';
-import { Download } from '../../types/download';
-import ProgressBar from '../../components/progressBars/compactProgressBar';
+import type { FC } from 'react';
+import { useState, useCallback } from 'react';
+import type { UIDownload as Download } from '../../types/download';
+import ProgressBar, { DownloadStatus } from '../../components/progressBars/compactProgressBar';
 import { formatSize, formatSpeed, formatTimeRemaining, formatDate } from '../../utils';
 import { getFileTypeIcon } from '../../icons.v2';
 import IconButton from '../../components/iconButton';
 import { Pause, Play, Trash2, Folder, MoreVertical, RotateCcw } from '../../icons.v2';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import { invoke } from '@tauri-apps/api/tauri';
+import { pauseDownload, resumeDownload, deleteDownload } from '../../bindings/commands';
 import { appWindow } from '@tauri-apps/api/window';
 
 interface DownloadItemProps {
@@ -17,7 +18,7 @@ interface DownloadItemProps {
   onToggleSelect: () => void;
 }
 
-const DownloadItem: React.FC<DownloadItemProps> = ({
+const DownloadItem: FC<DownloadItemProps> = ({
   download,
   onTogglePause,
   onCancel,
@@ -30,10 +31,10 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   const FileIcon = getFileTypeIcon(fileType);
   
   const statusText = {
-    downloading: 'Downloading',
-    paused: 'Paused',
-    completed: 'Completed',
-    error: 'Error',
+    [DownloadStatus.DOWNLOADING]: 'Downloading',
+    [DownloadStatus.PAUSED]: 'Paused',
+    [DownloadStatus.COMPLETED]: 'Completed',
+    [DownloadStatus.ERROR]: 'Error',
     queued: 'Queued',
     in_progress: 'In Progress'
   }[status] || 'Unknown';
@@ -54,33 +55,30 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   
   const handleTogglePause = useCallback(async () => {
     try {
-      if (status === 'downloading') {
+      if (status === DownloadStatus.DOWNLOADING) {
         // Pause the download
-        await invoke('pause_download', { downloadId: download.id });
-      } else if (status === 'paused' || status === 'error') {
+        await pauseDownload(id);
+      } else if (status === DownloadStatus.PAUSED || status === DownloadStatus.ERROR) {
         // Resume or retry the download
-        await invoke('resume_download', { downloadId: download.id });
+        await resumeDownload(id);
       }
       // Call the original callback to update UI
       onTogglePause();
     } catch (error) {
       console.error('Failed to toggle download status:', error);
     }
-  }, [download.id, status, onTogglePause]);
+  }, [id, status, onTogglePause]);
   
   const handleDeleteWithFile = useCallback(async (shouldDeleteFile: boolean) => {
     try {
-      // Call the Tauri delete_download command with the option to delete the file
-      await invoke('delete_download', { 
-        downloadId: download.id,
-        shouldAlsoDeleteFile: shouldDeleteFile
-      });
+      // Call the delete_download command with the option to delete the file
+      await deleteDownload(id, shouldDeleteFile);
       // Then call the original onCancel callback
       onCancel();
     } catch (error) {
       console.error('Failed to delete download:', error);
     }
-  }, [download.id, onCancel]);
+  }, [id, onCancel]);
 
   const handleDelete = useCallback(() => {
     // Show the dialog to confirm if the user wants to delete the file as well
@@ -88,6 +86,11 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   }, []);
 
   console.log('download', download);
+  
+  // Parse string values to numbers for calculations
+  const downloadedBytes = Number.parseInt(downloaded_bytes || '0');
+  const totalSize = Number.parseInt(total_size || '0');
+  const calculatedProgress = totalSize > 0 ? (downloadedBytes / totalSize) * 100 : 0;
   
   return (
     <>
@@ -107,15 +110,17 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
             <div className="flex-grow min-w-0 mr-2">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-medium text-app-text truncate mr-2" title={filename || url}>{filename || url}</span>
-                <span className="text-xs text-app-text-secondary whitespace-nowrap">{formatSize(downloaded_bytes)}/{formatSize(total_size)}</span>
+                <span className="text-xs text-app-text-secondary whitespace-nowrap">
+                  {formatSize(downloadedBytes)}/{formatSize(totalSize)}
+                </span>
               </div>
               
-              <ProgressBar progress={(downloaded_bytes / total_size) * 100} status={status} />
+              <ProgressBar progress={calculatedProgress} status={status as DownloadStatus} />
               
               <div className="flex justify-between items-center text-xs text-app-text-secondary mt-1">
                 <div className="flex items-center gap-1.5">
                   <span className="font-medium">{statusText}</span>
-                  {status === 'downloading' && (
+                  {status === DownloadStatus.DOWNLOADING && (
                     <>
                       <span>{formatSpeed(speed)}</span>
                       <span>{formatTimeRemaining(timeRemaining)}</span>
@@ -127,11 +132,11 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
             </div>
             
             <div className="flex items-center space-x-0.5">
-              {status === 'downloading' ? (
+              {status === DownloadStatus.DOWNLOADING ? (
                 <IconButton icon={<Pause size={16} />} onClick={handleTogglePause} tooltipText="Pause" />
-              ) : status === 'paused' ? (
+              ) : status === DownloadStatus.PAUSED ? (
                 <IconButton icon={<Play size={16} />} onClick={handleTogglePause} tooltipText="Resume" />
-              ) : status === 'error' ? (
+              ) : status === DownloadStatus.ERROR ? (
                 <IconButton icon={<RotateCcw size={16} />} onClick={handleTogglePause} tooltipText="Retry" />
               ) : (
                 <IconButton icon={<Folder size={16} />} onClick={() => {}} tooltipText="Open folder" />
@@ -190,7 +195,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
             >
               Download info
             </ContextMenu.Item>
-            {status === 'downloading' && (
+            {status === DownloadStatus.DOWNLOADING && (
               <ContextMenu.Item 
                 className="flex items-center px-3 py-1.5 text-xs text-app-text hover:bg-app-surface rounded outline-none cursor-default"
                 onClick={handleTogglePause}
@@ -198,7 +203,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
                 Pause download
               </ContextMenu.Item>
             )}
-            {status === 'paused' && (
+            {status === DownloadStatus.PAUSED && (
               <ContextMenu.Item 
                 className="flex items-center px-3 py-1.5 text-xs text-app-text hover:bg-app-surface rounded outline-none cursor-default"
                 onClick={handleTogglePause}

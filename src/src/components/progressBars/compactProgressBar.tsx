@@ -1,6 +1,13 @@
 import React from 'react';
 import * as Progress from '@radix-ui/react-progress';
-import { DownloadStatus } from '../../types/download';
+
+// Define DownloadStatus enum here since we're having trouble with imports
+enum DownloadStatus {
+  DOWNLOADING = 'downloading',
+  PAUSED = 'paused',
+  COMPLETED = 'completed',
+  ERROR = 'error'
+}
 
 interface ProgressBarProps {
   progress: number;
@@ -9,15 +16,15 @@ interface ProgressBarProps {
 
 const getStatusColor = (status: DownloadStatus): string => {
   switch (status) {
-    case 'downloading':
+    case DownloadStatus.DOWNLOADING:
       return 'bg-gradient-to-r from-app-primary to-app-accent';
-    case 'completed':
+    case DownloadStatus.COMPLETED:
       return 'bg-app-success';
-    case 'paused':
+    case DownloadStatus.PAUSED:
       return 'bg-app-warning';
-    case 'error':
+    case DownloadStatus.ERROR:
       return 'bg-app-error';
-    case 'queued':
+    case 'queued' as any:
       return 'bg-app-text-secondary';
     default:
       return 'bg-app-primary';
@@ -41,3 +48,4 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ progress, status }) => {
 };
 
 export default ProgressBar;
+export { DownloadStatus };

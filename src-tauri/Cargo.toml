@@ -10,13 +10,26 @@ rust-version = "1.57"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Define the library crate to expose our API functions
+[lib]
+name = "tauri_app"
+path = "src/lib.rs"
+
+# Also define the binary
+[[bin]]
+name = "tauri-app"
+path = "src/main.rs"
+
 [build-dependencies]
 tauri-build = { version = "1.4", features = [] }
+tauri-specta = { version = "1.0.2", features = ["typescript"] }
+specta = { version = "1.0.5", features = ["chrono"] }
 
 [dependencies]
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_with = "3.4.0"
 
 # Tauri Framework
 tauri = { version = "1.4", features = [ "http-all", "path-all", "fs-read-dir", "window-all", "fs-create-dir", "dialog-all", "fs-read-file", "fs-write-file", "shell-open"] }
@@ -33,6 +46,9 @@ chrono = { version = "0.4.31", features = ["serde"] }
 # Database
 rusqlite = { version = "0.29.0", features = ["bundled"] }
 tokio-rusqlite = "0.4.0"
+
+specta = { version = "1.0.5", features = ["chrono"] }
+tauri-specta = { version = "1.0.2", features = ["typescript"] }
 
 [features]
 # By default Tauri runs in production mode
