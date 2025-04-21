@@ -90,4 +90,11 @@ pub async fn delete_download(download_id: u64) -> Result<()> {
     let db = get_db_instance().await;
     let db_guard = db.lock().unwrap();
     db_guard.delete_download(download_id)
+}
+
+/// Update the status of a download in the database
+pub async fn update_status(download_id: u64, status: &str) -> Result<()> {
+    let db = get_db_instance().await;
+    let db_guard = db.lock().unwrap();
+    db_guard.update_status(download_id, status)
 } 

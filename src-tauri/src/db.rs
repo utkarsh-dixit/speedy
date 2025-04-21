@@ -357,6 +357,27 @@ impl DownloadDb {
         
         Ok(())
     }
+    
+    // Update download status
+    pub fn update_status(&self, download_id: u64, status: &str) -> Result<()> {
+        let affected_rows = self.conn.execute(
+            "UPDATE downloads SET
+                status = ?1,
+                updated_at = ?2
+            WHERE download_id = ?3",
+            params![
+                status,
+                Utc::now().to_rfc3339(),
+                download_id,
+            ],
+        )?;
+        
+        if affected_rows != 1 {
+            return Err(rusqlite::Error::QueryReturnedNoRows.into());
+        }
+        
+        Ok(())
+    }
 }
 
 // Create a singleton database connection

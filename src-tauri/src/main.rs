@@ -606,10 +606,55 @@ async fn check_existing_download(url: String) -> Result<serde_json::Value, Strin
     }))
 }
 
+/// Pauses a download by its ID
+#[tauri::command]
+async fn pause_download(download_id: u64) -> Result<(), String> {
+    println!("Pausing download: {}", download_id);
+    
+    // Update the download status to paused in the database
+    match db_manager::update_status(download_id, "paused").await {
+        Ok(_) => {
+            println!("Successfully paused download: {}", download_id);
+            Ok(())
+        },
+        Err(e) => {
+            println!("Failed to pause download: {}", e);
+            Err(format!("Failed to pause download: {}", e))
+        },
+    }
+}
+
+/// Resumes a download by its ID
+#[tauri::command]
+async fn resume_download(download_id: u64, window: Window) -> Result<(), String> {
+    println!("Resuming download: {}", download_id);
+    
+    // Get the download information from the database
+    let download = match db_manager::get_download(download_id).await {
+        Ok(Some(download)) => download,
+        Ok(None) => return Err("Download not found".to_string()),
+        Err(e) => return Err(format!("Error retrieving download: {}", e)),
+    };
+    
+    // Update the download status to in_progress
+    if let Err(e) = db_manager::update_status(download_id, "downloading").await {
+        return Err(format!("Failed to update download status: {}", e));
+    }
+    
+    // Restart the download with the same parameters
+    start_download(
+        download.url,
+        download.filename,
+        download.parts,
+        Some(download_id),
+        window
+    ).await
+}
+
 #[tauri::command]
 async fn debug_commands() -> Result<String, String> {
     // Return information about registered commands
-    let info = "Available commands: start_download, open_details_window, greet, list_downloads, get_download, delete_download, get_downloads_by_status, check_existing_download";
+    let info = "Available commands: start_download, open_details_window, greet, list_downloads, get_download, delete_download, get_downloads_by_status, check_existing_download, pause_download, resume_download";
     Ok(info.to_string())
 }
 
@@ -628,7 +673,9 @@ async fn main() {
             delete_download,
             get_downloads_by_status,
             debug_commands,
-            check_existing_download
+            check_existing_download,
+            pause_download,
+            resume_download
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

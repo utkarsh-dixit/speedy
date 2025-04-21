@@ -8,6 +8,7 @@ import { Pause, Play, Trash2, Folder, MoreVertical, RotateCcw } from '../../icon
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { invoke } from '@tauri-apps/api/tauri';
+import { appWindow } from '@tauri-apps/api/window';
 
 interface DownloadItemProps {
   download: Download;
@@ -25,7 +26,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [shouldDeleteFile, setShouldDeleteFile] = useState(false);
-  const { fileName, status, url, progress, speed, total_size, filename, downloaded_bytes, timeRemaining, lastModified, fileType, selected } = download;
+  const { fileName, status, url, progress, speed, total_size, filename, downloaded_bytes, timeRemaining, lastModified, fileType, selected, id } = download;
   const FileIcon = getFileTypeIcon(fileType);
   
   const statusText = {
@@ -51,11 +52,27 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
     console.log('Download info');
   }, []);
   
+  const handleTogglePause = useCallback(async () => {
+    try {
+      if (status === 'downloading') {
+        // Pause the download
+        await invoke('pause_download', { downloadId: download.id });
+      } else if (status === 'paused' || status === 'error') {
+        // Resume or retry the download
+        await invoke('resume_download', { downloadId: download.id });
+      }
+      // Call the original callback to update UI
+      onTogglePause();
+    } catch (error) {
+      console.error('Failed to toggle download status:', error);
+    }
+  }, [download.id, status, onTogglePause]);
+  
   const handleDeleteWithFile = useCallback(async (shouldDeleteFile: boolean) => {
     try {
       // Call the Tauri delete_download command with the option to delete the file
       await invoke('delete_download', { 
-        downloadId: download.download_id,
+        downloadId: download.id,
         shouldAlsoDeleteFile: shouldDeleteFile
       });
       // Then call the original onCancel callback
@@ -111,11 +128,11 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
             
             <div className="flex items-center space-x-0.5">
               {status === 'downloading' ? (
-                <IconButton icon={<Pause size={16} />} onClick={onTogglePause} tooltipText="Pause" />
+                <IconButton icon={<Pause size={16} />} onClick={handleTogglePause} tooltipText="Pause" />
               ) : status === 'paused' ? (
-                <IconButton icon={<Play size={16} />} onClick={onTogglePause} tooltipText="Resume" />
+                <IconButton icon={<Play size={16} />} onClick={handleTogglePause} tooltipText="Resume" />
               ) : status === 'error' ? (
-                <IconButton icon={<RotateCcw size={16} />} onClick={onTogglePause} tooltipText="Retry" />
+                <IconButton icon={<RotateCcw size={16} />} onClick={handleTogglePause} tooltipText="Retry" />
               ) : (
                 <IconButton icon={<Folder size={16} />} onClick={() => {}} tooltipText="Open folder" />
               )}
@@ -176,7 +193,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
             {status === 'downloading' && (
               <ContextMenu.Item 
                 className="flex items-center px-3 py-1.5 text-xs text-app-text hover:bg-app-surface rounded outline-none cursor-default"
-                onClick={onTogglePause}
+                onClick={handleTogglePause}
               >
                 Pause download
               </ContextMenu.Item>
@@ -184,7 +201,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
             {status === 'paused' && (
               <ContextMenu.Item 
                 className="flex items-center px-3 py-1.5 text-xs text-app-text hover:bg-app-surface rounded outline-none cursor-default"
-                onClick={onTogglePause}
+                onClick={handleTogglePause}
               >
                 Resume download
               </ContextMenu.Item>
