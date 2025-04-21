@@ -180,7 +180,7 @@ export const useDownloads = () => {
       } else {
         fetchFilteredDownloads();
       }
-    }, 50000);
+    }, 50);
     
     return () => clearInterval(intervalId);
   }, [fetchDownloads, fetchFilteredDownloads, categoryFilter]);

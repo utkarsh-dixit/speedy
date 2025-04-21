@@ -21,7 +21,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   onToggleSelect,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const { fileName, status, url, progress, speed, total_size, filename, timeRemaining, lastModified, fileType, selected } = download;
+  const { fileName, status, url, progress, speed, total_size, filename, downloaded_bytes, timeRemaining, lastModified, fileType, selected } = download;
   const FileIcon = getFileTypeIcon(fileType);
   
   const statusText = {
@@ -66,10 +66,10 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
           <div className="flex-grow min-w-0 mr-2">
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs font-medium text-app-text truncate mr-2" title={filename || url}>{filename || url}</span>
-              <span className="text-xs text-app-text-secondary whitespace-nowrap">{formatSize(total_size)}</span>
+              <span className="text-xs text-app-text-secondary whitespace-nowrap">{formatSize(downloaded_bytes)}/{formatSize(total_size)}</span>
             </div>
             
-            <ProgressBar progress={progress} status={status} />
+            <ProgressBar progress={(downloaded_bytes / total_size) * 100} status={status} />
             
             <div className="flex justify-between items-center text-xs text-app-text-secondary mt-1">
               <div className="flex items-center gap-1.5">
