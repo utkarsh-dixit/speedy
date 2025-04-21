@@ -10,40 +10,6 @@ declare global {
 // Function avoids 'window not defined' in SSR
 const invoke = () => window.__TAURI_INVOKE__;
 
-export function startDownload(url: string, name: string, parts: number, downloadId: number | null) {
-    return invoke()<null>("start_download", { url,name,parts,downloadId })
-}
 
-export function listDownloads() {
-    return invoke()<Download[]>("list_downloads")
-}
 
-export function getDownload(downloadId: number) {
-    return invoke()<Download | null>("get_download", { downloadId })
-}
 
-export function deleteDownload(downloadId: number, shouldAlsoDeleteFile: boolean | null) {
-    return invoke()<null>("delete_download", { downloadId,shouldAlsoDeleteFile })
-}
-
-export function pauseDownload(downloadId: number) {
-    return invoke()<null>("pause_download", { downloadId })
-}
-
-export function resumeDownload(downloadId: number) {
-    return invoke()<null>("resume_download", { downloadId })
-}
-
-export function getDownloadsByStatus(status: string) {
-    return invoke()<Download[]>("get_downloads_by_status", { status })
-}
-
-export function checkExistingDownload(url: string) {
-    return invoke()<any>("check_existing_download", { url })
-}
-
-export function openDetailsWindow(downloadId: number, url: string, title: string) {
-    return invoke()<null>("open_details_window", { downloadId,url,title })
-}
-
-export type Download = { id: number | null; download_id: number; url: string; filename: string; total_size: number; downloaded_bytes: number; status: string; error_message: string | null; parts: number; created_at: string; updated_at: string; completed_at: string | null; save_path: string | null }
