@@ -164,7 +164,7 @@ impl Client {
     }
     
     /// Download the file with the specified number of parallel segments
-    pub async fn download(&mut self, event_sender: Sender<DownloadEvent>) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn download(&mut self, event_sender: Sender<DownloadEvent>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let url = self.url.clone();
         let parts = self.parts;
 
@@ -355,7 +355,7 @@ impl Client {
     }
     
     /// Merge all part files into the final output file
-    async fn merge_part_files(&self, file_name: &str, temp_dir: &PathBuf, parts: u64) -> Result<(), Box<dyn std::error::Error>> {
+    async fn merge_part_files(&self, file_name: &str, temp_dir: &PathBuf, parts: u64) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Try to use the Downloads directory, fall back to current directory if not available
         let output_dir = dirs::download_dir().unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let output_path = output_dir.join(file_name);

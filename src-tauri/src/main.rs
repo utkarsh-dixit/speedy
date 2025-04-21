@@ -6,9 +6,11 @@
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Window;
 use tauri_app::client::{Client, DownloadEvent};
+use tauri_app::db::Download;
+use tauri_app::db_manager;
 use tokio::time;
 
 /// Represents the current state of a download operation
@@ -233,41 +235,107 @@ impl HighWaterMarkTracker {
 
 /// Starts a download process and tracks its progress
 #[tauri::command]
-async fn start_download(url: String, parts: u64, download_id: u64, window: Window) -> Result<(), String> {
+async fn start_download(url: String, parts: u64, download_id: Option<u64>, window: Window) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel::<DownloadEvent>();
 
     // Create shared download state
     let download_state = Arc::new(Mutex::new(DownloadState::new()));
     
+    // Get the filename from the URL
+    let filename = Client::get_file_name(&url);
+    
+    // Use provided download_id or generate a new one
+    let download_id = download_id.unwrap_or_else(|| {
+        // Generate a unique ID based on current timestamp
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+        timestamp
+    });
+    
+    // Create a database entry for this download
+    let download = Download::new(download_id, url.clone(), filename.clone(), 0, parts);
+    if let Err(e) = db_manager::insert_download(&download).await {
+        eprintln!("Failed to insert download into database: {}", e);
+    }
+    
     // Start the download process
-    let event_sender = tx.clone();
+    let url_clone = url.clone();
+    let download_id_clone = download_id;
     tokio::spawn(async move {
-        let mut client = Client::new(url, parts);
-        if let Err(e) = client.download(event_sender).await {
-            eprintln!("Download error: {}", e);
+        let mut client = Client::new(url_clone, parts);
+        if let Err(e) = client.download(tx.clone()).await {
+            let error_message = e.to_string();
+            eprintln!("Download error: {}", error_message);
+            // Update database with error - avoid using the error directly across await
+            if let Err(db_err) = db_manager::mark_error(download_id_clone, &error_message).await {
+                eprintln!("Failed to update database with error: {}", db_err);
+            }
         }
     });
 
     // Create a thread to process events and update the download state
     let state = download_state.clone();
+    let download_id_clone = download_id;
+    let filename_clone = filename.clone();
+    
     tokio::spawn(async move {
         while let Ok(event) = rx.recv() {
             match event {
                 DownloadEvent::Initialize { file_size, segments } => {
-                    let mut state_guard = state.lock().unwrap();
-                    state_guard.initialize(file_size, segments);
+                    // Use a block to limit the scope of the mutex guard
+                    {
+                        let mut state_guard = state.lock().unwrap();
+                        state_guard.initialize(file_size, segments.clone());
+                    }
+                    
+                    // Update the database with the file size
+                    if let Ok(Some(mut download)) = db_manager::get_download(download_id_clone).await {
+                        download.total_size = file_size;
+                        if let Err(e) = db_manager::update_download(&download).await {
+                            eprintln!("Failed to update download size in database: {}", e);
+                        }
+                    }
                 },
                 DownloadEvent::BytesReceived { segment_id, bytes, speed } => {
-                    let mut state_guard = state.lock().unwrap();
-                    state_guard.add_bytes(segment_id, bytes, speed);
+                    // Use a block to limit the scope of the mutex guard
+                    {
+                        let mut state_guard = state.lock().unwrap();
+                        state_guard.add_bytes(segment_id, bytes, speed);
+                    }
+                    
+                    // Update the database with progress
+                    if let Err(e) = db_manager::update_progress(download_id_clone, bytes).await {
+                        eprintln!("Failed to update download progress in database: {}", e);
+                    }
                 },
                 DownloadEvent::Error { segment_id, message } => {
                     eprintln!("Error in segment {}: {}", segment_id, message);
-                    // Additional error handling could be added here
+                    
+                    // Update database with error
+                    let error_message = message.clone();
+                    if let Err(e) = db_manager::mark_error(download_id_clone, &error_message).await {
+                        eprintln!("Failed to update database with error: {}", e);
+                    }
                 },
                 DownloadEvent::Complete => {
-                    let mut state_guard = state.lock().unwrap();
-                    state_guard.mark_complete();
+                    // Mark the state as complete
+                    {
+                        let mut state_guard = state.lock().unwrap();
+                        state_guard.mark_complete();
+                    }
+                    
+                    // Try to get the output path for the completed download
+                    let output_dir = dirs::download_dir().unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
+                    let output_path = output_dir.join(&filename_clone);
+                    let path_str = output_path.to_string_lossy().to_string();
+                    
+                    // Update database with completion
+                    if let Err(e) = db_manager::mark_complete(download_id_clone, &path_str).await {
+                        eprintln!("Failed to mark download as complete in database: {}", e);
+                    }
+                    
                     break;
                 }
             }
@@ -317,6 +385,42 @@ async fn start_download(url: String, parts: u64, download_id: u64, window: Windo
     Ok(())
 }
 
+/// List all downloads from the database
+#[tauri::command]
+async fn list_downloads() -> Result<Vec<Download>, String> {
+    match db_manager::list_downloads().await {
+        Ok(downloads) => Ok(downloads),
+        Err(e) => Err(format!("Failed to list downloads: {}", e)),
+    }
+}
+
+/// Get a download by ID from the database
+#[tauri::command]
+async fn get_download(download_id: u64) -> Result<Option<Download>, String> {
+    match db_manager::get_download(download_id).await {
+        Ok(download) => Ok(download),
+        Err(e) => Err(format!("Failed to get download: {}", e)),
+    }
+}
+
+/// Delete a download from the database
+#[tauri::command]
+async fn delete_download(download_id: u64) -> Result<(), String> {
+    match db_manager::delete_download(download_id).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Failed to delete download: {}", e)),
+    }
+}
+
+/// Get downloads with a specific status from the database
+#[tauri::command]
+async fn get_downloads_by_status(status: String) -> Result<Vec<Download>, String> {
+    match db_manager::get_downloads_by_status(&status).await {
+        Ok(downloads) => Ok(downloads),
+        Err(e) => Err(format!("Failed to get downloads by status: {}", e)),
+    }
+}
+
 /// Opens a new window to display download details
 #[tauri::command]
 async fn open_details_window(
@@ -348,16 +452,31 @@ async fn greet(_name: &str, window: Window) -> Result<(), String> {
     let parts = 5;
     let download_id = 0; // Default ID for the greet command
     
-    start_download(url, parts, download_id, window).await
+    start_download(url, parts, Some(download_id), window).await
+}
+
+#[tauri::command]
+async fn debug_commands() -> Result<String, String> {
+    // Return information about registered commands
+    let info = "Available commands: start_download, open_details_window, greet, list_downloads, get_download, delete_download, get_downloads_by_status";
+    Ok(info.to_string())
 }
 
 #[tokio::main]
 async fn main() {
+    // Initialize the database
+    db_manager::init_db().await;
+    
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             start_download,
             open_details_window,
-            greet
+            greet,
+            list_downloads,
+            get_download,
+            delete_download,
+            get_downloads_by_status,
+            debug_commands
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

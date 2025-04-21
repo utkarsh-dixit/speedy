@@ -21,7 +21,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   onToggleSelect,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const { fileName, status, progress, speed, size, timeRemaining, lastModified, fileType, selected } = download;
+  const { fileName, status, url, progress, speed, total_size, filename, timeRemaining, lastModified, fileType, selected } = download;
   const FileIcon = getFileTypeIcon(fileType);
   
   const statusText = {
@@ -29,7 +29,8 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
     paused: 'Paused',
     completed: 'Completed',
     error: 'Error',
-    queued: 'Queued'
+    queued: 'Queued',
+    in_progress: 'In Progress'
   }[status] || 'Unknown';
   
   const handleCopyUrl = useCallback(() => {
@@ -45,6 +46,8 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
   const handleDownloadInfo = useCallback(() => {
     console.log('Download info');
   }, []);
+
+  console.log('download', download);
   
   return (
     <ContextMenu.Root>
@@ -62,8 +65,8 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
           
           <div className="flex-grow min-w-0 mr-2">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-medium text-app-text truncate mr-2" title={fileName}>{fileName}</span>
-              <span className="text-xs text-app-text-secondary whitespace-nowrap">{formatSize(size)}</span>
+              <span className="text-xs font-medium text-app-text truncate mr-2" title={filename || url}>{filename || url}</span>
+              <span className="text-xs text-app-text-secondary whitespace-nowrap">{formatSize(total_size)}</span>
             </div>
             
             <ProgressBar progress={progress} status={status} />
@@ -78,7 +81,7 @@ const DownloadItem: React.FC<DownloadItemProps> = ({
                   </>
                 )}
               </div>
-              <span className="text-2xs">{formatDate(lastModified)}</span>
+              {/* <span className="text-2xs">{formatDate(lastModified)}</span> */}
             </div>
           </div>
           

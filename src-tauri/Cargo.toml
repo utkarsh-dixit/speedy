@@ -28,7 +28,11 @@ futures-util = "0.3.28"  # Update to a newer version
 
 # Dirs crate for accessing standard platform-specific directories
 dirs = "5.0.1"
-chrono = "0.4.31"
+chrono = { version = "0.4.31", features = ["serde"] }
+
+# Database
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+tokio-rusqlite = "0.4.0"
 
 [features]
 # By default Tauri runs in production mode
