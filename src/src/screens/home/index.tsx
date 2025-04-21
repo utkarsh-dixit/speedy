@@ -5,7 +5,7 @@ import DownloadList from './layout/downloadList';
 import StatusBar from './layout/statusBar';
 import { useDownloads } from '../../hooks/useDownloads';
 import { initialSystemStats } from '../../data/mockData';
-import { SortOption, SortDirection } from '../../types/download';
+import type { SortOption, SortDirection } from '../../types/download';
 
 function HomeScreen() {
   const {
@@ -51,7 +51,13 @@ function HomeScreen() {
   
   return (
     <div className={`flex flex-col h-screen ${isDarkTheme ? 'dark bg-black text-gray-100' : 'bg-white text-gray-900'}`}>
-      
+      <Header 
+        title="Downloads"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        isGridView={isGridView}
+        onToggleView={() => setIsGridView(!isGridView)}
+      />
       <div className="flex-grow flex overflow-hidden">
         <Sidebar 
           categoryFilter={categoryFilter}

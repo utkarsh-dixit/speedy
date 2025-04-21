@@ -41,7 +41,7 @@ const DownloadList: React.FC<DownloadListProps> = ({
         <UrlInput onAddDownload={onAddDownload} />
       </div>
       
-      <div className="flex-grow overflow-hidden">
+      <div className="flex-grow overflow-x-hidden">
         {/* <div className="sticky top-0 bg-black z-10 border-b border-gray-800">
           <div className="flex items-center p-2 text-xs text-gray-400 font-medium">
             <div className="flex-shrink-0 w-6 mr-2">

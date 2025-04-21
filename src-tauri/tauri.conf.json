@@ -87,10 +87,10 @@
         "height": 650,
         "resizable": true,
         "title": "Speedy Download Manager",
-        "width": 800,
-        "minWidth": 480,
+        "width": 900,
+        "minWidth": 900,
         "minHeight": 550,
-        "decorations": true,
+        "decorations": false,
         "center": true
       }
     ]

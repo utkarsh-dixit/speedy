@@ -25,7 +25,7 @@ const UrlInput: React.FC<UrlInputProps> = ({ onAddDownload }) => {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Enter URL..."
-            className="w-full py-1.5 px-2 bg-app-surface border border-app-surface-light rounded-md text-app-text placeholder-app-text-secondary focus:outline-none focus:border-app-primary transition-colors"
+            className="text-sm w-full py-1.5 px-2 bg-app-surface border border-app-surface-light rounded-md text-app-text placeholder-app-text-secondary focus:outline-none focus:border-app-primary transition-colors pl-4"
             aria-label="Download URL"
           />
         </Form.Control>
